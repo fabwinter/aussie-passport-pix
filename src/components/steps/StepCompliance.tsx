@@ -94,30 +94,45 @@ export default function StepCompliance() {
 
   useEffect(() => { runAutoChecks(); }, [runAutoChecks]);
 
-  const autoChecks = [
+  const autoChecks: {
+    label: string;
+    detail: string;
+    pass: boolean;
+    fix: string;
+    fixStep?: number;
+    fixLabel?: string;
+  }[] = [
     {
       label: "White background",
       detail: "All corners must be ≥215/255 brightness",
       pass: complianceResults.whiteBackground,
-      fix: "Go back to Background Removal to re-process",
+      fix: "Re-run background removal or adjust lighting in the Enhance step.",
+      fixStep: 2,
+      fixLabel: "Go to Background Removal",
     },
     {
       label: "Correct aspect ratio (35×45 mm / 7:9)",
       detail: "Width-to-height ratio must be within ±2% of 7∶9",
       pass: complianceResults.correctAspectRatio,
-      fix: "Go back to Crop & Resize to re-crop",
+      fix: "Re-crop the photo to restore the correct 7:9 ratio.",
+      fixStep: 3,
+      fixLabel: "Go to Crop & Resize",
     },
     {
       label: "Sufficient resolution (≥ 600 DPI)",
       detail: "Minimum 827 × 1063 px for 35×45 mm at 600 DPI",
       pass: complianceResults.sufficientResolution,
-      fix: "Use a higher-resolution source photo",
+      fix: "Upload a higher-resolution source photo (at least 800 × 1000 px).",
+      fixStep: 1,
+      fixLabel: "Go to Upload",
     },
     {
       label: "Colour photo",
       detail: "RGB colour variance detected in face region",
       pass: complianceResults.colourPhoto,
-      fix: "Ensure your source photo is a colour image",
+      fix: "Ensure your source photo is in colour — check the Saturation slider in the Enhance step.",
+      fixStep: 4,
+      fixLabel: "Go to Enhance",
     },
   ];
 
@@ -180,9 +195,21 @@ export default function StepCompliance() {
                 </Badge>
               </div>
               {!c.pass && (
-                <p className="text-xs text-muted-foreground pl-6">
-                  <span className="font-medium text-destructive">Fix: </span>{c.fix}
-                </p>
+                <div className="pl-6 flex items-start gap-2">
+                  <p className="text-xs text-muted-foreground flex-1">
+                    <span className="font-medium text-destructive">Fix: </span>{c.fix}
+                  </p>
+                  {c.fixStep && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-7 px-2 flex-shrink-0 whitespace-nowrap"
+                      onClick={() => setCurrentStep(c.fixStep!)}
+                    >
+                      {c.fixLabel ?? "Go Fix"} →
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           ))}
