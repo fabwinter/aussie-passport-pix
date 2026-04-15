@@ -1,48 +1,65 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { usePhoto } from "@/context/PhotoContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Sun, RotateCcw } from "lucide-react";
+import { Sun, RotateCcw, ArrowLeft } from "lucide-react";
 
 export default function StepEnhance() {
   const {
-    croppedImage, enhancedImage, setEnhancedImage,
+    croppedImage, setEnhancedImage,
     brightness, setBrightness,
     contrast, setContrast,
     sharpness, setSharpness,
     setCurrentStep,
   } = usePhoto();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
-  const applyEnhancements = useCallback(() => {
-    if (!croppedImage || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d")!;
+  // Load image once
+  useEffect(() => {
+    if (!croppedImage) return;
     const img = new Image();
     img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.filter = `brightness(${brightness}) contrast(${contrast})`;
-      ctx.drawImage(img, 0, 0);
-
-      // Simple unsharp mask simulation via overlay
-      if (sharpness > 1) {
-        ctx.globalAlpha = (sharpness - 1) * 0.3;
-        ctx.filter = `brightness(${brightness}) contrast(${contrast + 0.3})`;
-        ctx.drawImage(img, 0, 0);
-        ctx.globalAlpha = 1;
-        ctx.filter = "none";
-      }
-
-      setEnhancedImage(canvas.toDataURL("image/jpeg", 0.95));
+      imgRef.current = img;
+      setImageLoaded(true);
     };
     img.src = croppedImage;
-  }, [croppedImage, brightness, contrast, sharpness, setEnhancedImage]);
+  }, [croppedImage]);
+
+  // Apply enhancements in real-time whenever sliders change
+  const applyEnhancements = useCallback(() => {
+    const img = imgRef.current;
+    const canvas = canvasRef.current;
+    if (!img || !canvas) return;
+
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext("2d")!;
+
+    ctx.filter = `brightness(${brightness}) contrast(${contrast})`;
+    ctx.drawImage(img, 0, 0);
+
+    // Simple unsharp mask simulation via overlay
+    if (sharpness > 1) {
+      ctx.globalAlpha = (sharpness - 1) * 0.3;
+      ctx.filter = `brightness(${brightness}) contrast(${contrast + 0.3})`;
+      ctx.drawImage(img, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.filter = "none";
+    }
+  }, [brightness, contrast, sharpness, imageLoaded]);
 
   useEffect(() => {
-    applyEnhancements();
-  }, [applyEnhancements]);
+    if (imageLoaded) applyEnhancements();
+  }, [applyEnhancements, imageLoaded]);
+
+  const saveAndContinue = useCallback(() => {
+    if (!canvasRef.current) return;
+    setEnhancedImage(canvasRef.current.toDataURL("image/jpeg", 0.95));
+    setCurrentStep(5);
+  }, [setEnhancedImage, setCurrentStep]);
 
   const resetDefaults = () => {
     setBrightness(1.15);
@@ -76,10 +93,13 @@ export default function StepEnhance() {
         </div>
 
         <div className="flex justify-center gap-3">
-          <Button variant="outline" onClick={resetDefaults} className="gap-2">
-            <RotateCcw className="w-4 h-4" /> Reset to defaults
+          <Button variant="outline" onClick={() => setCurrentStep(3)} className="gap-2">
+            <ArrowLeft className="w-4 h-4" /> Back
           </Button>
-          <Button onClick={() => setCurrentStep(5)}>
+          <Button variant="outline" onClick={resetDefaults} className="gap-2">
+            <RotateCcw className="w-4 h-4" /> Reset
+          </Button>
+          <Button onClick={saveAndContinue}>
             Continue to Compliance →
           </Button>
         </div>

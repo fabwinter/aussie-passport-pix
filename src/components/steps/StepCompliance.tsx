@@ -3,7 +3,7 @@ import { usePhoto } from "@/context/PhotoContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, AlertTriangle, ClipboardCheck } from "lucide-react";
+import { CheckCircle2, AlertTriangle, ClipboardCheck, ArrowLeft } from "lucide-react";
 
 const manualChecks = [
   "Ensure eyes are open and clearly visible",
@@ -25,7 +25,6 @@ export default function StepCompliance() {
       const ctx = canvas.getContext("2d")!;
       ctx.drawImage(img, 0, 0);
 
-      // Check white background - sample corners
       const corners = [
         ctx.getImageData(0, 0, 10, 10),
         ctx.getImageData(img.width - 10, 0, 10, 10),
@@ -40,14 +39,10 @@ export default function StepCompliance() {
         return r / count > 220 && g / count > 220 && b / count > 220;
       });
 
-      // Check aspect ratio (7:9 = 0.778)
       const ratio = img.width / img.height;
       const correctAspectRatio = Math.abs(ratio - 7 / 9) < 0.02;
-
-      // Check resolution (827x1063 at 600 DPI)
       const sufficientResolution = img.width >= 827 && img.height >= 1063;
 
-      // Check colour (not grayscale)
       const sample = ctx.getImageData(Math.floor(img.width / 2), Math.floor(img.height / 2), 50, 50);
       let colorVariance = 0;
       for (let i = 0; i < sample.data.length; i += 4) {
@@ -61,9 +56,7 @@ export default function StepCompliance() {
     img.src = enhancedImage;
   }, [enhancedImage, setComplianceResults]);
 
-  useEffect(() => {
-    runAutoChecks();
-  }, [runAutoChecks]);
+  useEffect(() => { runAutoChecks(); }, [runAutoChecks]);
 
   const autoChecks = [
     { label: "White background detected", pass: complianceResults.whiteBackground },
@@ -71,7 +64,6 @@ export default function StepCompliance() {
     { label: "Sufficient resolution ≥ 600 DPI", pass: complianceResults.sufficientResolution },
     { label: "Colour photo", pass: complianceResults.colourPhoto },
   ];
-
   const allAutoPass = autoChecks.every((c) => c.pass);
 
   if (!enhancedImage) {
@@ -100,11 +92,7 @@ export default function StepCompliance() {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Auto Checks</p>
           {autoChecks.map((c) => (
             <div key={c.label} className="flex items-center gap-2 text-sm">
-              {c.pass ? (
-                <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0" />
-              )}
+              {c.pass ? <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" /> : <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0" />}
               <span>{c.label}</span>
               <Badge variant={c.pass ? "default" : "destructive"} className={`ml-auto text-xs ${c.pass ? "bg-success text-success-foreground" : ""}`}>
                 {c.pass ? "Pass" : "Fail"}
@@ -124,7 +112,10 @@ export default function StepCompliance() {
           ))}
         </div>
 
-        <div className="flex justify-center">
+        <div className="flex justify-center gap-3">
+          <Button variant="outline" onClick={() => setCurrentStep(4)} className="gap-2">
+            <ArrowLeft className="w-4 h-4" /> Back
+          </Button>
           <Button onClick={() => setCurrentStep(6)}>
             Continue to Print Template →
           </Button>

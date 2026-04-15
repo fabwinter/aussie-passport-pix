@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { usePhoto } from "@/context/PhotoContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Printer, RotateCcw } from "lucide-react";
+import { Download, Printer, RotateCcw, ArrowLeft } from "lucide-react";
 
 const SHEET_W = 1181;
 const SHEET_H = 1772;
@@ -10,7 +10,7 @@ const PHOTO_W = 827;
 const PHOTO_H = 1063;
 
 export default function StepPrint() {
-  const { enhancedImage, printSheet, setPrintSheet, resetAll } = usePhoto();
+  const { enhancedImage, printSheet, setPrintSheet, resetAll, setCurrentStep } = usePhoto();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const generatePrintSheet = useCallback(() => {
@@ -21,16 +21,13 @@ export default function StepPrint() {
       canvas.width = SHEET_W;
       canvas.height = SHEET_H;
       const ctx = canvas.getContext("2d")!;
-
-      // White background
       ctx.fillStyle = "#FFFFFF";
       ctx.fillRect(0, 0, SHEET_W, SHEET_H);
 
-      // Calculate positions for 2x2 grid centered
-      const scaledW = (SHEET_W - 60) / 2; // 30px padding sides, 10px gap
+      const scaledW = (SHEET_W - 60) / 2;
       const scaledH = scaledW * (PHOTO_H / PHOTO_W);
       const gapX = (SHEET_W - scaledW * 2) / 3;
-      const gapY = (SHEET_H - scaledH * 2 - 40) / 3; // 40px for footer
+      const gapY = (SHEET_H - scaledH * 2 - 40) / 3;
 
       const positions = [
         [gapX, gapY],
@@ -46,20 +43,14 @@ export default function StepPrint() {
         ctx.strokeRect(x, y, scaledW, scaledH);
       });
 
-      // Footer
       ctx.fillStyle = "#999999";
       ctx.font = "16px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(
-        "Australian Passport Photo | 35×45mm | Print at 10×15cm (4×6 inch)",
-        SHEET_W / 2,
-        SHEET_H - 15
-      );
+      ctx.fillText("Australian Passport Photo | 35×45mm | Print at 10×15cm (4×6 inch)", SHEET_W / 2, SHEET_H - 15);
 
       const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
       setPrintSheet(dataUrl);
 
-      // Draw to visible canvas
       if (canvasRef.current) {
         const vc = canvasRef.current;
         vc.width = SHEET_W;
@@ -70,9 +61,7 @@ export default function StepPrint() {
     img.src = enhancedImage;
   }, [enhancedImage, setPrintSheet]);
 
-  useEffect(() => {
-    generatePrintSheet();
-  }, [generatePrintSheet]);
+  useEffect(() => { generatePrintSheet(); }, [generatePrintSheet]);
 
   const downloadFile = (dataUrl: string, filename: string) => {
     const a = document.createElement("a");
@@ -109,7 +98,10 @@ export default function StepPrint() {
           </Button>
         </div>
 
-        <div className="flex justify-center pt-2">
+        <div className="flex justify-center gap-3 pt-2">
+          <Button variant="outline" onClick={() => setCurrentStep(5)} className="gap-2">
+            <ArrowLeft className="w-4 h-4" /> Back
+          </Button>
           <Button variant="ghost" onClick={resetAll} className="gap-2 text-muted-foreground">
             <RotateCcw className="w-4 h-4" /> Start Over
           </Button>
