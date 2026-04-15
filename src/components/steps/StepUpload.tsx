@@ -2,7 +2,7 @@ import { useCallback, useState, useRef, useEffect } from "react";
 import { usePhoto } from "@/context/PhotoContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, ImageIcon, Camera, X, Circle, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, ImageIcon, Camera, X, Circle, ChevronDown, ChevronUp, RefreshCw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 const PHOTO_TIPS = [
@@ -15,6 +15,8 @@ const PHOTO_TIPS = [
   { icon: "📐", text: "High resolution — at least 800 × 1000 px recommended" },
 ];
 
+type FacingMode = "environment" | "user";
+
 export default function StepUpload() {
   const { setOriginalImage, setOriginalFile, setCurrentStep } = usePhoto();
   const [preview, setPreview] = useState<string | null>(null);
@@ -22,6 +24,7 @@ export default function StepUpload() {
   const [dragOver, setDragOver] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<FacingMode>("environment");
   const [showTips, setShowTips] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -91,7 +94,6 @@ export default function StepUpload() {
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) processFile(file);
-    // Reset so the same file can be re-selected after "Choose Different Photo"
     e.target.value = "";
   }, [processFile]);
 
@@ -101,23 +103,34 @@ export default function StepUpload() {
     setCameraActive(false);
   }, []);
 
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (facing: FacingMode) => {
     setCameraError(null);
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraError("Camera not supported in this browser. Please upload a file instead.");
       return;
     }
+    // Stop any existing stream before starting a new one
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setCameraActive(false);
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } },
+        video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 960 } },
       });
       streamRef.current = stream;
+      setFacingMode(facing);
       setCameraActive(true);
     } catch {
       setCameraError("Camera access denied or unavailable. Please upload a photo instead.");
       toast.error("Camera access denied.");
     }
   }, []);
+
+  const switchCamera = useCallback(() => {
+    const next: FacingMode = facingMode === "environment" ? "user" : "environment";
+    startCamera(next);
+  }, [facingMode, startCamera]);
 
   useEffect(() => {
     if (cameraActive && videoRef.current && streamRef.current) {
@@ -135,14 +148,20 @@ export default function StepUpload() {
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    canvas.getContext("2d")!.drawImage(video, 0, 0);
+    // Mirror the canvas if using the front camera (reverses the selfie flip)
+    const ctx = canvas.getContext("2d")!;
+    if (facingMode === "user") {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(video, 0, 0);
     canvas.toBlob((blob) => {
       if (!blob) return;
       const file = new File([blob], "camera-photo.jpg", { type: "image/jpeg" });
       processFile(file);
       stopCamera();
     }, "image/jpeg", 0.95);
-  }, [processFile, stopCamera]);
+  }, [facingMode, processFile, stopCamera]);
 
   return (
     <Card className="border-primary/20">
@@ -162,6 +181,8 @@ export default function StepUpload() {
                 playsInline
                 muted
                 className="w-full h-full object-cover"
+                // Mirror the preview for front camera so it feels natural
+                style={facingMode === "user" ? { transform: "scaleX(-1)" } : undefined}
               />
               {/* Oval face-position guide */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -177,9 +198,39 @@ export default function StepUpload() {
                 />
               </div>
             </div>
+
+            {/* Camera mode indicator + switch button */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Camera className="w-3.5 h-3.5" />
+                {facingMode === "environment" ? "Back camera (recommended)" : "Front camera"}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={switchCamera}
+                className="gap-1.5 text-xs h-7 px-2"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Switch camera
+              </Button>
+            </div>
+
+            {/* Front-camera warning */}
+            {facingMode === "user" && (
+              <div className="flex items-start gap-2 rounded-lg bg-warning/10 text-warning px-3 py-2 text-xs">
+                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                <span>
+                  Front cameras produce lower quality images and can distort proportions.
+                  The back camera is strongly recommended for passport photos.
+                </span>
+              </div>
+            )}
+
             <p className="text-xs text-muted-foreground text-center">
               Centre your face inside the oval. Look straight ahead with a neutral expression.
             </p>
+
             <div className="flex gap-2">
               <Button variant="outline" onClick={stopCamera} className="flex-1 gap-2">
                 <X className="w-4 h-4" /> Cancel
@@ -220,7 +271,12 @@ export default function StepUpload() {
               <div className="flex-1 border-t border-muted-foreground/20" />
             </div>
 
-            <Button variant="outline" className="w-full gap-2" onClick={startCamera}>
+            {/* Default to back camera (environment) */}
+            <Button
+              variant="outline"
+              className="w-full gap-2"
+              onClick={() => startCamera("environment")}
+            >
               <Camera className="w-4 h-4" />
               Take Photo with Camera
             </Button>
