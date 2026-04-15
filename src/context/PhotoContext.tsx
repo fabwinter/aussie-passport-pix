@@ -28,6 +28,8 @@ interface PhotoContextType {
   setContrast: (n: number) => void;
   sharpness: number;
   setSharpness: (n: number) => void;
+  saturation: number;
+  setSaturation: (n: number) => void;
   complianceResults: ComplianceResults;
   setComplianceResults: (r: ComplianceResults) => void;
   resetAll: () => void;
@@ -53,6 +55,7 @@ export function PhotoProvider({ children }: { children: React.ReactNode }) {
   const [brightness, setBrightness] = useState(1.15);
   const [contrast, setContrast] = useState(1.10);
   const [sharpness, setSharpness] = useState(1.30);
+  const [saturation, setSaturation] = useState(1.0);
   const [complianceResults, setComplianceResults] = useState<ComplianceResults>(defaultCompliance);
 
   const resetAll = useCallback(() => {
@@ -66,6 +69,7 @@ export function PhotoProvider({ children }: { children: React.ReactNode }) {
     setBrightness(1.15);
     setContrast(1.10);
     setSharpness(1.30);
+    setSaturation(1.0);
     setComplianceResults(defaultCompliance);
   }, []);
 
@@ -82,6 +86,7 @@ export function PhotoProvider({ children }: { children: React.ReactNode }) {
         brightness, setBrightness,
         contrast, setContrast,
         sharpness, setSharpness,
+        saturation, setSaturation,
         complianceResults, setComplianceResults,
         resetAll,
       }}
