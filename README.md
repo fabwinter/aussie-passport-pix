@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Welcome to Aussie Passport
 
 TODO: Document your project here
