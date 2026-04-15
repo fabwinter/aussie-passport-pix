@@ -6,121 +6,204 @@ import { Loader2, Layers, ArrowLeft, RotateCcw, SkipForward } from "lucide-react
 import { toast } from "sonner";
 import { removeBackground } from "@imgly/background-removal";
 
-// How long to wait before giving up (ms)
-const REMOVAL_TIMEOUT_MS = 60_000;
+// ─── Canvas-based background removal ────────────────────────────────────────
+// Pure browser implementation — no CDN, no model download, works offline.
+// Ideal for passport photos which already have a plain-colour background.
+// Algorithm: flood-fill from all four edges using colour distance tolerance.
+function removeBackgroundCanvas(imageSrc: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.width;
+      const h = img.height;
 
-// The library downloads its ONNX model at runtime. We point it at jsDelivr
-// so the request isn't blocked by the default CDN.
-const BG_REMOVAL_PUBLIC_PATH =
-  "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/";
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+      ctx.drawImage(img, 0, 0);
 
+      const imageData = ctx.getImageData(0, 0, w, h);
+      const d = imageData.data;
+
+      // Average background colour from the four 10×10 px corners
+      const CS = 10;
+      let rSum = 0, gSum = 0, bSum = 0, n = 0;
+      for (const [ox, oy] of [[0, 0], [w - CS, 0], [0, h - CS], [w - CS, h - CS]] as [number, number][]) {
+        for (let y = oy; y < Math.min(oy + CS, h); y++) {
+          for (let x = ox; x < Math.min(ox + CS, w); x++) {
+            const i = (y * w + x) * 4;
+            rSum += d[i]; gSum += d[i + 1]; bSum += d[i + 2]; n++;
+          }
+        }
+      }
+      const bgR = rSum / n, bgG = gSum / n, bgB = bSum / n;
+
+      // Colour distance threshold — increase for more aggressive removal
+      const TOLERANCE = 40;
+      const isBg = (i: number) => {
+        const dr = d[i] - bgR, dg = d[i + 1] - bgG, db = d[i + 2] - bgB;
+        return Math.sqrt(dr * dr + dg * dg + db * db) <= TOLERANCE;
+      };
+
+      // Flood-fill mask seeded from all four edges
+      const mask = new Uint8Array(w * h);
+      const stack: number[] = [];
+
+      const push = (x: number, y: number) => {
+        if (x < 0 || x >= w || y < 0 || y >= h) return;
+        const idx = y * w + x;
+        if (mask[idx] === 1) return;
+        if (!isBg(idx * 4)) return;
+        mask[idx] = 1;
+        stack.push(idx);
+      };
+
+      for (let x = 0; x < w; x++) { push(x, 0); push(x, h - 1); }
+      for (let y = 1; y < h - 1; y++) { push(0, y); push(w - 1, y); }
+
+      while (stack.length > 0) {
+        const idx = stack.pop()!;
+        const x = idx % w, y = (idx / w) | 0;
+        push(x + 1, y); push(x - 1, y);
+        push(x, y + 1); push(x, y - 1);
+      }
+
+      // Replace background pixels with white
+      for (let i = 0; i < w * h; i++) {
+        if (mask[i]) {
+          const p = i * 4;
+          d[p] = 255; d[p + 1] = 255; d[p + 2] = 255; d[p + 3] = 255;
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+
+      // Composite onto a fresh white canvas to guarantee a white background
+      const out = document.createElement("canvas");
+      out.width = w; out.height = h;
+      const octx = out.getContext("2d")!;
+      octx.fillStyle = "#FFFFFF";
+      octx.fillRect(0, 0, w, h);
+      octx.drawImage(canvas, 0, 0);
+
+      resolve(out.toDataURL("image/png"));
+    };
+    img.onerror = reject;
+    img.src = imageSrc;
+  });
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
 export default function StepBackgroundRemoval() {
-  const { originalImage, bgRemovedImage, setBgRemovedImage, setCurrentStep } = usePhoto();
+  const {
+    originalImage, originalFile,
+    bgRemovedImage, setBgRemovedImage,
+    setCurrentStep,
+  } = usePhoto();
+
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
   const [hasError, setHasError] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
   const [sliderPos, setSliderPos] = useState(50);
   const sliderRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
-  // Incremented on every new run. Callbacks from stale runs are ignored.
+  // Incremented on every new run; lets us discard results from stale runs
   const runVersionRef = useRef(0);
 
   const removeBg = useCallback(async () => {
     if (!originalImage) return;
-
     const version = ++runVersionRef.current;
 
     setLoading(true);
     setHasError(false);
-    setErrorMessage("");
     setProgress("Loading AI model…");
 
-    // Race the actual work against a hard timeout so the spinner can never
-    // spin forever.
-    let timeoutHandle: ReturnType<typeof setTimeout>;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutHandle = setTimeout(
-        () => reject(new Error("timeout")),
-        REMOVAL_TIMEOUT_MS,
-      );
-    });
+    let usedFallback = false;
+    let resultDataUrl: string | null = null;
 
+    // ── Step 1: Try AI removal ──────────────────────────────────────────────
+    // Pass originalFile (a File/Blob) directly to avoid unreliable fetch() on
+    // blob: URLs in iOS Safari and other mobile browsers.
     try {
-      const res = await fetch(originalImage);
-      const blob = await res.blob();
+      const blob: Blob = originalFile ?? await (await fetch(originalImage)).blob();
 
-      if (version !== runVersionRef.current) return; // stale
-      setProgress("Removing background…");
-
-      const resultBlob = await Promise.race([
-        removeBackground(blob, {
-          publicPath: BG_REMOVAL_PUBLIC_PATH,
-          progress: (key: string, current: number, total: number) => {
-            if (version !== runVersionRef.current) return;
-            if (key === "compute:inference") {
-              const pct = total > 0 ? Math.round((current / total) * 100) : 0;
-              setProgress(`Processing… ${pct}%`);
-            } else if (key.startsWith("fetch:")) {
-              const pct = total > 0 ? Math.round((current / total) * 100) : 0;
-              setProgress(`Downloading AI model… ${pct}%`);
-            } else if (key.toLowerCase().includes("onnx")) {
-              setProgress("Initialising AI engine…");
-            }
-          },
-        }),
-        timeoutPromise,
-      ]);
-
-      clearTimeout(timeoutHandle!);
-      if (version !== runVersionRef.current) return; // stale
-
-      // Composite result onto a white background canvas
-      const img = new Image();
-      const resultUrl = URL.createObjectURL(resultBlob);
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = reject;
-        img.src = resultUrl;
+      const aiPromise = removeBackground(blob, {
+        // Let the library resolve its own publicPath so the version always
+        // matches the bundled code — don't hardcode a CDN version string here.
+        progress: (key: string, current: number, total: number) => {
+          if (version !== runVersionRef.current) return;
+          if (key === "compute:inference") {
+            setProgress(`Processing… ${Math.round((current / total) * 100)}%`);
+          } else if (key.startsWith("fetch:")) {
+            const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+            setProgress(`Downloading AI model… ${pct}%`);
+          } else if (key.toLowerCase().includes("onnx")) {
+            setProgress("Initialising AI engine…");
+          }
+        },
       });
 
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext("2d")!;
+      // 20 s timeout — if the model CDN is unreachable, fall through quickly
+      const resultBlob: Blob = await Promise.race([
+        aiPromise,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("ai_timeout")), 20_000)
+        ),
+      ]);
+
+      if (version !== runVersionRef.current) return;
+
+      const img = new Image();
+      const resultUrl = URL.createObjectURL(resultBlob);
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res(); img.onerror = rej; img.src = resultUrl;
+      });
+
+      const cvs = document.createElement("canvas");
+      cvs.width = img.width; cvs.height = img.height;
+      const ctx = cvs.getContext("2d")!;
       ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, cvs.width, cvs.height);
       ctx.drawImage(img, 0, 0);
       URL.revokeObjectURL(resultUrl);
 
-      if (version !== runVersionRef.current) return; // stale
-      setBgRemovedImage(canvas.toDataURL("image/png"));
-      toast.success("Background removed successfully!");
-    } catch (err) {
-      clearTimeout(timeoutHandle!);
-      if (version !== runVersionRef.current) return; // stale
+      resultDataUrl = cvs.toDataURL("image/png");
+    } catch {
+      // AI failed / timed out — fall through to canvas removal
+      usedFallback = true;
+    }
 
-      const isTimeout = err instanceof Error && err.message === "timeout";
-      const msg = isTimeout
-        ? "Background removal timed out after 60 seconds."
-        : "Background removal failed.";
-
-      setHasError(true);
-      setErrorMessage(msg);
-      toast.error(msg + " Use Try Again or Skip if your background is already white.");
-    } finally {
-      if (version === runVersionRef.current) {
+    // ── Step 2: Canvas fallback ─────────────────────────────────────────────
+    if (usedFallback) {
+      if (version !== runVersionRef.current) return;
+      setProgress("Removing background locally…");
+      try {
+        resultDataUrl = await removeBackgroundCanvas(originalImage);
+      } catch {
+        if (version !== runVersionRef.current) return;
+        setHasError(true);
         setLoading(false);
         setProgress("");
+        toast.error("Background removal failed. Use Skip or try a different photo.");
+        return;
       }
     }
-  }, [originalImage, setBgRemovedImage]);
 
-  // Auto-run once when arriving at this step with no result yet.
-  // We use a ref guard so clicking "Remove Again" (which sets bgRemovedImage
-  // to null) doesn't cause a double-call — the button calls removeBg()
-  // directly, and the ref prevents the effect from also calling it.
+    if (version !== runVersionRef.current) return;
+    setBgRemovedImage(resultDataUrl!);
+    setLoading(false);
+    setProgress("");
+    toast.success(
+      usedFallback
+        ? "Background removed (local method)."
+        : "Background removed with AI."
+    );
+  }, [originalImage, originalFile, setBgRemovedImage]);
+
+  // Auto-run once on first arrival; ref-guard prevents double-call from
+  // "Remove Again" (which calls removeBg() directly).
   const autoRunDoneRef = useRef(false);
   useEffect(() => {
     if (originalImage && !bgRemovedImage && !autoRunDoneRef.current) {
@@ -129,43 +212,49 @@ export default function StepBackgroundRemoval() {
     }
   }, [originalImage, bgRemovedImage, removeBg]);
 
-  // Skip background removal — places the original photo on a white canvas
+  // Skip: cancel any in-progress run, place original on white, go to Crop
   const skipRemoval = useCallback(() => {
     if (!originalImage) return;
+    // Increment version so any ongoing removeBg() discards its result
+    runVersionRef.current++;
+    setLoading(false);
+    setProgress("");
+    setHasError(false);
+
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
+      canvas.width = img.width; canvas.height = img.height;
       const ctx = canvas.getContext("2d")!;
       ctx.fillStyle = "#FFFFFF";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0);
       setBgRemovedImage(canvas.toDataURL("image/png"));
-      toast.success("Skipped background removal — make sure your background is already white.");
+      setCurrentStep(3);
+      toast.success("Skipped background removal — ensure your background is plain white.");
     };
     img.src = originalImage;
-  }, [originalImage, setBgRemovedImage]);
+  }, [originalImage, setBgRemovedImage, setCurrentStep]);
 
+  // Drag slider
   const handleMouseMove = useCallback((e: MouseEvent | TouchEvent) => {
     if (!dragging.current || !sliderRef.current) return;
     const rect = sliderRef.current.getBoundingClientRect();
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    const pos = ((clientX - rect.left) / rect.width) * 100;
-    setSliderPos(Math.max(0, Math.min(100, pos)));
+    setSliderPos(Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)));
   }, []);
 
   useEffect(() => {
-    const handleUp = () => { dragging.current = false; };
+    const up = () => { dragging.current = false; };
     window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleUp);
-    window.addEventListener("touchmove", handleMouseMove);
-    window.addEventListener("touchend", handleUp);
+    window.addEventListener("mouseup", up);
+    window.addEventListener("touchmove", handleMouseMove, { passive: true });
+    window.addEventListener("touchend", up);
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleUp);
+      window.removeEventListener("mouseup", up);
       window.removeEventListener("touchmove", handleMouseMove);
-      window.removeEventListener("touchend", handleUp);
+      window.removeEventListener("touchend", up);
     };
   }, [handleMouseMove]);
 
@@ -178,16 +267,16 @@ export default function StepBackgroundRemoval() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {loading ? (
+
+        {loading && (
           <div className="flex flex-col items-center gap-4 py-12">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <div className="text-center space-y-1">
               <p className="text-sm font-medium">{progress || "Removing background…"}</p>
               <p className="text-xs text-muted-foreground">
-                Takes 10–30 s on first run while the AI model downloads. Times out after 60 s.
+                Trying AI removal first — falls back to local method automatically
               </p>
             </div>
-            {/* Escape hatch — visible immediately so users aren't stranded */}
             <Button
               size="sm"
               variant="ghost"
@@ -198,13 +287,15 @@ export default function StepBackgroundRemoval() {
               Skip — my background is already white
             </Button>
           </div>
-        ) : hasError ? (
+        )}
+
+        {!loading && hasError && (
           <div className="space-y-4">
             <div className="rounded-lg bg-destructive/10 text-destructive text-sm p-4 text-center space-y-3">
-              <p className="font-medium">{errorMessage || "Background removal failed"}</p>
+              <p className="font-medium">Background removal failed</p>
               <p className="text-xs opacity-80">
-                This usually means the AI model could not be downloaded. Check your internet
-                connection and try again, or use Skip if your photo already has a white background.
+                Both AI and local methods failed. Try again with a well-lit photo, or
+                use Skip if your background is already plain white.
               </p>
               <div className="flex justify-center gap-2 flex-wrap">
                 <Button size="sm" onClick={removeBg} className="gap-2">
@@ -221,9 +312,11 @@ export default function StepBackgroundRemoval() {
               </Button>
             </div>
           </div>
-        ) : originalImage && bgRemovedImage ? (
+        )}
+
+        {!loading && !hasError && originalImage && bgRemovedImage && (
           <div className="space-y-4">
-            {/* Before / After comparison slider */}
+            {/* Before / After slider */}
             <div
               ref={sliderRef}
               className="relative w-full max-w-md mx-auto aspect-[7/9] overflow-hidden rounded-lg border shadow-sm cursor-ew-resize select-none"
@@ -239,10 +332,7 @@ export default function StepBackgroundRemoval() {
                   style={{ width: `${100 / (sliderPos / 100)}%`, maxWidth: "none" }}
                 />
               </div>
-              <div
-                className="absolute top-0 bottom-0 w-0.5 bg-primary shadow-lg"
-                style={{ left: `${sliderPos}%` }}
-              >
+              <div className="absolute top-0 bottom-0 w-0.5 bg-primary shadow-lg" style={{ left: `${sliderPos}%` }}>
                 <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shadow-lg">
                   ⟺
                 </div>
@@ -252,7 +342,7 @@ export default function StepBackgroundRemoval() {
             </div>
 
             <p className="text-xs text-center text-muted-foreground">
-              Drag the slider to compare. If the result looks good, continue.
+              Drag the slider to compare. Continue if the result looks good.
             </p>
 
             <div className="flex justify-center gap-3 flex-wrap">
@@ -261,15 +351,8 @@ export default function StepBackgroundRemoval() {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => {
-                  // Reset state and trigger a fresh run via removeBg() directly.
-                  // The autoRunDoneRef is intentionally NOT reset here — we call
-                  // removeBg() directly so the effect guard doesn't double-fire.
-                  setBgRemovedImage(null);
-                  removeBg();
-                }}
+                onClick={() => { setBgRemovedImage(null); removeBg(); }}
                 className="gap-2"
-                title="Re-run background removal on the same photo"
               >
                 <RotateCcw className="w-4 h-4" /> Remove Again
               </Button>
@@ -278,7 +361,9 @@ export default function StepBackgroundRemoval() {
               </Button>
             </div>
           </div>
-        ) : (
+        )}
+
+        {!loading && !hasError && !bgRemovedImage && (
           <div className="space-y-3 py-8 text-center">
             <p className="text-sm text-muted-foreground">Upload a photo first.</p>
             <Button variant="outline" onClick={() => setCurrentStep(1)} className="gap-2">
@@ -286,6 +371,7 @@ export default function StepBackgroundRemoval() {
             </Button>
           </div>
         )}
+
       </CardContent>
     </Card>
   );
