@@ -24,24 +24,26 @@ export default function StepBackgroundRemoval() {
     setEta(null);
     const t0 = Date.now();
     try {
-      const res = await fetch(originalImage);
-      const blob = await res.blob();
-
       setProgress("Removing background…");
-      const resultBlob = await removeBackground(blob, {
-        progress: (key, current, total) => {
-          if (key === "compute:inference") {
-            const pct = Math.round((current / total) * 100);
-            setProgress(`Processing… ${pct}%`);
-            if (current > 0) {
-              const elapsed = (Date.now() - t0) / 1000;
-              const rate = current / Math.max(elapsed, 0.1);
+      const resultBlob = await removeBackground(originalImage, {
+        progress: (key: string, current: number, total: number) => {
+          const steps: Record<string, string> = {
+            "compute:decode": "Decoding image…",
+            "compute:inference": "Running AI model…",
+            "compute:mask": "Applying mask…",
+            "compute:encode": "Encoding result…",
+          };
+          if (steps[key]) {
+            const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+            setProgress(`${steps[key]} ${pct > 0 && pct < 100 ? `${pct}%` : ""}`.trim());
+          }
+          if (key === "fetch:ort-wasm-simd-threaded.jsep") {
+            const elapsed = (Date.now() - t0) / 1000;
+            if (total > 0 && current > 0 && elapsed > 0.5) {
+              const rate = current / elapsed;
               const remaining = (total - current) / Math.max(rate, 1);
-              if (remaining > 2) {
-                setEta(`${Math.round(remaining)}s remaining`);
-              } else {
-                setEta(null);
-              }
+              if (remaining > 2) setEta(`${Math.round(remaining)}s remaining`);
+              else setEta(null);
             }
           }
         },

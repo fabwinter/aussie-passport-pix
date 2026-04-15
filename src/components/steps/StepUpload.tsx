@@ -3,7 +3,7 @@ import { usePhoto } from "@/context/PhotoContext";
 import { assessSuitability } from "@/lib/suitability";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, ImageIcon, Camera, X, Circle, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, Image as ImageIcon, Camera, X, Circle, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 
 const PHOTO_TIPS = [

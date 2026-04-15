@@ -3,7 +3,7 @@ import { usePhoto } from "@/context/PhotoContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, AlertTriangle, ClipboardCheck, ArrowLeft, Info, Bot } from "lucide-react";
+import { CircleCheck as CheckCircle2, TriangleAlert as AlertTriangle, ClipboardCheck, ArrowLeft, Info, Bot } from "lucide-react";
 
 const manualChecks = [
   {
