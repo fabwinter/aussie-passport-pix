@@ -3,7 +3,7 @@ import { usePhoto } from "@/context/PhotoContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Sun, RotateCcw, ArrowLeft, Wand2 } from "lucide-react";
+import { Sun, RotateCcw, ArrowLeft, Wand as Wand2, SunMedium } from "lucide-react";
 import { toast } from "sonner";
 
 export default function StepEnhance() {
@@ -13,17 +13,16 @@ export default function StepEnhance() {
     contrast, setContrast,
     saturation, setSaturation,
     sharpness, setSharpness,
+    advancedEnhanceVisible, setAdvancedEnhanceVisible,
     setCurrentStep,
   } = usePhoto();
 
   const [isAutoEnhancing, setIsAutoEnhancing] = useState(false);
 
-  // Live preview via CSS filter — guaranteed to respond to every slider move
   const previewFilter = [
     `brightness(${brightness})`,
     `contrast(${contrast})`,
     `saturate(${saturation})`,
-    // Approximate sharpness visually with a slight extra contrast boost
     sharpness > 1 ? `contrast(${(1 + (sharpness - 1) * 0.12).toFixed(3)})` : "",
   ].filter(Boolean).join(" ");
 
@@ -32,7 +31,6 @@ export default function StepEnhance() {
     setIsAutoEnhancing(true);
     const img = new Image();
     img.onload = () => {
-      // Sample at reduced size for speed
       const sampleW = Math.min(img.width, 200);
       const sampleH = Math.round(sampleW * (img.height / img.width));
       const canvas = document.createElement("canvas");
@@ -48,7 +46,6 @@ export default function StepEnhance() {
 
       for (let i = 0; i < data.length; i += 4) {
         const r = data[i], g = data[i + 1], b = data[i + 2];
-        // Ignore near-white background pixels produced by bg-removal
         if (r > 240 && g > 240 && b > 240) continue;
 
         const luma = 0.299 * r + 0.587 * g + 0.114 * b;
@@ -64,17 +61,15 @@ export default function StepEnhance() {
 
       if (pixelCount === 0) { setIsAutoEnhancing(false); return; }
 
-      const avgLuma = totalLuma / pixelCount;        // 0–255
-      const avgSat  = totalSat  / pixelCount;        // 0–1
-      const range   = maxLuma - minLuma;             // 0–255
+      const avgLuma = totalLuma / pixelCount;
+      const avgSat  = totalSat  / pixelCount;
+      const range   = maxLuma - minLuma;
 
-      // Target face luma ~160/255 (well-lit, not blown-out)
       const targetLuma = 160;
       const newBrightness = parseFloat(
         Math.min(Math.max(targetLuma / Math.max(avgLuma, 1), 0.8), 1.6).toFixed(2)
       );
 
-      // Stretch contrast toward a tonal range of ~180/255
       const targetRange = 180;
       const newContrast = parseFloat(
         (range < targetRange
@@ -83,7 +78,6 @@ export default function StepEnhance() {
         ).toFixed(2)
       );
 
-      // Natural skin saturation sits around 0.18–0.25; boost if flat, reduce if garish
       const targetSat = 0.22;
       const newSaturation = parseFloat(
         (avgSat < targetSat
@@ -97,13 +91,44 @@ export default function StepEnhance() {
       setBrightness(newBrightness);
       setContrast(newContrast);
       setSaturation(newSaturation);
-      setSharpness(1.30); // Standard passport sharpening
+      setSharpness(1.30);
       setIsAutoEnhancing(false);
-      toast.success("Auto enhancement applied for passport photo standards.");
+      toast.success("Auto correction applied for passport photo standards.");
     };
     img.onerror = () => setIsAutoEnhancing(false);
     img.src = croppedImage;
   }, [croppedImage, setBrightness, setContrast, setSaturation, setSharpness]);
+
+  const reduceShadows = useCallback(() => {
+    if (!croppedImage) return;
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (luma < 100) {
+          const boost = ((100 - luma) / 100) * 40;
+          data[i]     = Math.min(255, r + boost);
+          data[i + 1] = Math.min(255, g + boost);
+          data[i + 2] = Math.min(255, b + boost);
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+      setEnhancedImage(canvas.toDataURL("image/jpeg", 0.95));
+      toast.success("Facial shadows softened.");
+    };
+    img.src = croppedImage;
+  }, [croppedImage, setEnhancedImage]);
 
   const saveAndContinue = useCallback(() => {
     if (!croppedImage) return;
@@ -114,11 +139,9 @@ export default function StepEnhance() {
       canvas.height = img.height;
       const ctx = canvas.getContext("2d")!;
 
-      // Primary pass — brightness + contrast + saturation
       ctx.filter = `brightness(${brightness}) contrast(${contrast}) saturate(${saturation})`;
       ctx.drawImage(img, 0, 0);
 
-      // Sharpening overlay (unsharp-mask simulation)
       if (sharpness > 1) {
         ctx.globalAlpha = (sharpness - 1) * 0.3;
         ctx.filter = `brightness(${brightness}) contrast(${(contrast + 0.3).toFixed(3)}) saturate(${saturation})`;
@@ -159,7 +182,6 @@ export default function StepEnhance() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* CSS filter on <img> — updates instantly on every slider change */}
         <div className="flex justify-center">
           <img
             src={croppedImage}
@@ -169,7 +191,7 @@ export default function StepEnhance() {
           />
         </div>
 
-        <div className="flex justify-center">
+        <div className="flex justify-center gap-2 flex-wrap">
           <Button
             variant="outline"
             onClick={autoEnhance}
@@ -177,16 +199,57 @@ export default function StepEnhance() {
             className="gap-2"
           >
             <Wand2 className="w-4 h-4" />
-            {isAutoEnhancing ? "Analysing…" : "Auto Enhance"}
+            {isAutoEnhancing ? "Analysing…" : "Auto Correct Lighting"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={reduceShadows}
+            className="gap-2"
+          >
+            <SunMedium className="w-4 h-4" />
+            Soften Shadows
           </Button>
         </div>
 
-        <div className="space-y-4 max-w-md mx-auto">
-          <SliderControl label="Brightness" value={brightness} onChange={setBrightness} min={0.5} max={2} step={0.05} />
-          <SliderControl label="Contrast"   value={contrast}   onChange={setContrast}   min={0.5} max={2} step={0.05} />
-          <SliderControl label="Saturation" value={saturation} onChange={setSaturation} min={0}   max={2} step={0.05} />
-          <SliderControl label="Sharpness"  value={sharpness}  onChange={setSharpness}  min={0.5} max={3} step={0.05} />
+        <div className="text-center">
+          <button
+            type="button"
+            className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
+            onClick={() => setAdvancedEnhanceVisible(!advancedEnhanceVisible)}
+          >
+            {advancedEnhanceVisible ? "Hide advanced settings" : "Show advanced settings"}
+          </button>
         </div>
+
+        {advancedEnhanceVisible && (
+          <div className="space-y-4 max-w-md mx-auto">
+            <SliderControl
+              label="Brightness"
+              value={brightness}
+              onValueChange={([v]) => setBrightness(v)}
+              min={0.5} max={2} step={0.05}
+            />
+            <SliderControl
+              label="Contrast"
+              value={contrast}
+              onValueChange={([v]) => setContrast(v)}
+              min={0.5} max={2} step={0.05}
+            />
+            <SliderControl
+              label="Saturation"
+              value={saturation}
+              onValueChange={([v]) => setSaturation(v)}
+              min={0} max={2} step={0.05}
+            />
+            <SliderControl
+              label="Sharpness"
+              value={sharpness}
+              onValueChange={([v]) => setSharpness(v)}
+              min={0.5} max={3} step={0.05}
+            />
+          </div>
+        )}
 
         <div className="flex justify-center gap-3 flex-wrap">
           <Button variant="outline" onClick={() => setCurrentStep(3)} className="gap-2">
@@ -205,10 +268,19 @@ export default function StepEnhance() {
 }
 
 function SliderControl({
-  label, value, onChange, min, max, step,
+  label,
+  value,
+  onValueChange,
+  min,
+  max,
+  step,
 }: {
-  label: string; value: number; onChange: (v: number) => void;
-  min: number; max: number; step: number;
+  label: string;
+  value: number;
+  onValueChange: (v: number[]) => void;
+  min: number;
+  max: number;
+  step: number;
 }) {
   return (
     <div className="space-y-2">
@@ -216,13 +288,15 @@ function SliderControl({
         <span className="font-medium">{label}</span>
         <span className="text-muted-foreground">{value.toFixed(2)}</span>
       </div>
-      <Slider
-        value={[value]}
-        onValueChange={([v]) => onChange(v)}
-        min={min}
-        max={max}
-        step={step}
-      />
+      <div style={{ touchAction: "none" }}>
+        <Slider
+          value={[value]}
+          onValueChange={onValueChange}
+          min={min}
+          max={max}
+          step={step}
+        />
+      </div>
     </div>
   );
 }

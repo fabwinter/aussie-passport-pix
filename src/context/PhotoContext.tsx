@@ -7,6 +7,16 @@ export interface ComplianceResults {
   colourPhoto: boolean;
 }
 
+export interface SuitabilityAssessment {
+  ok: boolean;
+  reasons: string[];
+}
+
+export interface AiCheckResult {
+  status: "idle" | "running" | "pass" | "fail" | "error";
+  reasons: string[];
+}
+
 interface PhotoContextType {
   currentStep: number;
   setCurrentStep: (s: number) => void;
@@ -32,6 +42,12 @@ interface PhotoContextType {
   setSaturation: (n: number) => void;
   complianceResults: ComplianceResults;
   setComplianceResults: (r: ComplianceResults) => void;
+  suitability: SuitabilityAssessment | null;
+  setSuitability: (s: SuitabilityAssessment | null) => void;
+  advancedEnhanceVisible: boolean;
+  setAdvancedEnhanceVisible: (b: boolean) => void;
+  aiCheck: AiCheckResult;
+  setAiCheck: (r: AiCheckResult) => void;
   resetAll: () => void;
 }
 
@@ -57,6 +73,9 @@ export function PhotoProvider({ children }: { children: React.ReactNode }) {
   const [sharpness, setSharpness] = useState(1.30);
   const [saturation, setSaturation] = useState(1.0);
   const [complianceResults, setComplianceResults] = useState<ComplianceResults>(defaultCompliance);
+  const [suitability, setSuitability] = useState<SuitabilityAssessment | null>(null);
+  const [advancedEnhanceVisible, setAdvancedEnhanceVisible] = useState(false);
+  const [aiCheck, setAiCheck] = useState<AiCheckResult>({ status: "idle", reasons: [] });
 
   const resetAll = useCallback(() => {
     setCurrentStep(1);
@@ -71,6 +90,9 @@ export function PhotoProvider({ children }: { children: React.ReactNode }) {
     setSharpness(1.30);
     setSaturation(1.0);
     setComplianceResults(defaultCompliance);
+    setSuitability(null);
+    setAdvancedEnhanceVisible(false);
+    setAiCheck({ status: "idle", reasons: [] });
   }, []);
 
   return (
@@ -88,6 +110,9 @@ export function PhotoProvider({ children }: { children: React.ReactNode }) {
         sharpness, setSharpness,
         saturation, setSaturation,
         complianceResults, setComplianceResults,
+        suitability, setSuitability,
+        advancedEnhanceVisible, setAdvancedEnhanceVisible,
+        aiCheck, setAiCheck,
         resetAll,
       }}
     >

@@ -3,9 +3,8 @@ import { usePhoto } from "@/context/PhotoContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, AlertTriangle, ClipboardCheck, ArrowLeft, Info } from "lucide-react";
+import { CheckCircle2, AlertTriangle, ClipboardCheck, ArrowLeft, Info, Bot } from "lucide-react";
 
-// Manual checks with AU-specific guidance
 const manualChecks = [
   {
     label: "Eyes open, clearly visible and looking directly at camera",
@@ -38,7 +37,7 @@ const manualChecks = [
 ];
 
 export default function StepCompliance() {
-  const { enhancedImage, complianceResults, setComplianceResults, setCurrentStep } = usePhoto();
+  const { enhancedImage, complianceResults, setComplianceResults, aiCheck, setAiCheck, setCurrentStep } = usePhoto();
 
   const runAutoChecks = useCallback(() => {
     if (!enhancedImage) return;
@@ -50,29 +49,32 @@ export default function StepCompliance() {
       const ctx = canvas.getContext("2d")!;
       ctx.drawImage(img, 0, 0);
 
-      // White background: sample 15×15px at all four corners
+      const margin = Math.round(img.width * 0.04);
+      const patchSize = 15;
       const corners = [
-        ctx.getImageData(0, 0, 15, 15),
-        ctx.getImageData(img.width - 15, 0, 15, 15),
-        ctx.getImageData(0, img.height - 15, 15, 15),
-        ctx.getImageData(img.width - 15, img.height - 15, 15, 15),
+        ctx.getImageData(margin, margin, patchSize, patchSize),
+        ctx.getImageData(img.width - margin - patchSize, margin, patchSize, patchSize),
+        ctx.getImageData(margin, img.height - margin - patchSize, patchSize, patchSize),
+        ctx.getImageData(img.width - margin - patchSize, img.height - margin - patchSize, patchSize, patchSize),
       ];
+
       const whiteBackground = corners.every((corner) => {
-        let r = 0, g = 0, b = 0, count = 0;
+        let brightCount = 0;
+        const totalCount = corner.data.length / 4;
         for (let i = 0; i < corner.data.length; i += 4) {
-          r += corner.data[i]; g += corner.data[i + 1]; b += corner.data[i + 2]; count++;
+          const r = corner.data[i];
+          const g = corner.data[i + 1];
+          const b = corner.data[i + 2];
+          if (r > 210 && g > 210 && b > 210) brightCount++;
         }
-        return r / count > 215 && g / count > 215 && b / count > 215;
+        return brightCount / Math.max(totalCount, 1) > 0.9;
       });
 
-      // Aspect ratio: 35mm × 45mm → 7:9
       const ratio = img.width / img.height;
       const correctAspectRatio = Math.abs(ratio - 7 / 9) < 0.02;
 
-      // Resolution: 35×45mm @ 600 DPI = 827×1063 px
       const sufficientResolution = img.width >= 827 && img.height >= 1063;
 
-      // Colour photo: RGB variance in a central sample
       const sample = ctx.getImageData(
         Math.floor(img.width / 4),
         Math.floor(img.height / 4),
@@ -94,6 +96,33 @@ export default function StepCompliance() {
 
   useEffect(() => { runAutoChecks(); }, [runAutoChecks]);
 
+  const runAiCheck = useCallback(async () => {
+    if (!enhancedImage || aiCheck.status === "running") return;
+    setAiCheck({ status: "running", reasons: [] });
+    try {
+      const aiCheckUrl = import.meta.env.VITE_AI_CHECK_URL;
+      if (!aiCheckUrl) {
+        setAiCheck({ status: "error", reasons: ["AI checker endpoint not configured (VITE_AI_CHECK_URL)."] });
+        return;
+      }
+      const res = await fetch(aiCheckUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: enhancedImage, country: "AU" }),
+      });
+      const data = await res.json();
+      setAiCheck({
+        status: data.pass ? "pass" : "fail",
+        reasons: data.reasons ?? [],
+      });
+    } catch {
+      setAiCheck({
+        status: "error",
+        reasons: ["Could not contact AI checker. Try again later."],
+      });
+    }
+  }, [enhancedImage, aiCheck.status, setAiCheck]);
+
   const autoChecks: {
     label: string;
     detail: string;
@@ -104,7 +133,7 @@ export default function StepCompliance() {
   }[] = [
     {
       label: "White background",
-      detail: "All corners must be ≥215/255 brightness",
+      detail: "Corner patches must be ≥90% bright pixels (>210/255)",
       pass: complianceResults.whiteBackground,
       fix: "Re-run background removal or adjust lighting in the Enhance step.",
       fixStep: 2,
@@ -157,7 +186,6 @@ export default function StepCompliance() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* Thumbnail of the photo being checked */}
         <div className="flex gap-4 items-start">
           <img
             src={enhancedImage}
@@ -174,7 +202,6 @@ export default function StepCompliance() {
           </div>
         </div>
 
-        {/* Automated checks */}
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Automated Checks (applied to final adjusted photo)
@@ -215,7 +242,53 @@ export default function StepCompliance() {
           ))}
         </div>
 
-        {/* Manual checks */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Optional AI Check (Australian standards)
+          </p>
+          <div className="rounded-lg border px-3 py-3 space-y-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={aiCheck.status === "running" || !enhancedImage}
+                className="gap-2"
+                onClick={runAiCheck}
+              >
+                <Bot className="w-4 h-4" />
+                {aiCheck.status === "running" ? "Checking…" : "Run AI Passport Check"}
+              </Button>
+              {aiCheck.status === "pass" && (
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                  Likely to pass Australian passport photo standards.
+                </span>
+              )}
+              {aiCheck.status === "fail" && (
+                <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+                  Potential issues detected — see notes below.
+                </span>
+              )}
+              {aiCheck.status === "error" && (
+                <span className="text-xs text-destructive font-medium">
+                  {aiCheck.reasons[0] ?? "AI check unavailable."}
+                </span>
+              )}
+            </div>
+            {aiCheck.status === "idle" && (
+              <p className="text-xs text-muted-foreground">
+                Optional: run an AI check against Australian passport photo requirements. Requires VITE_AI_CHECK_URL to be configured.
+              </p>
+            )}
+            {aiCheck.reasons.length > 0 && aiCheck.status !== "error" && (
+              <ul className="list-disc pl-5 text-xs text-muted-foreground space-y-0.5">
+                {aiCheck.reasons.map((r) => (
+                  <li key={r}>{r}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Manual Checks — please review your photo carefully

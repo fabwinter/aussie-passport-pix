@@ -1,5 +1,6 @@
 import { useCallback, useState, useRef, useEffect } from "react";
 import { usePhoto } from "@/context/PhotoContext";
+import { assessSuitability } from "@/lib/suitability";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, ImageIcon, Camera, X, Circle, ChevronDown, ChevronUp } from "lucide-react";
@@ -16,7 +17,7 @@ const PHOTO_TIPS = [
 ];
 
 export default function StepUpload() {
-  const { setOriginalImage, setOriginalFile, setCurrentStep } = usePhoto();
+  const { setOriginalImage, setOriginalFile, setCurrentStep, suitability, setSuitability } = usePhoto();
   const [preview, setPreview] = useState<string | null>(null);
   const [fileInfo, setFileInfo] = useState<{ name: string; size: string } | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -26,8 +27,15 @@ export default function StepUpload() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Accepts JPG, PNG, WebP natively. For HEIC/HEIF and others,
-  // loads into a canvas and converts to JPEG.
+  const runSuitabilityCheck = useCallback(async (dataUrl: string) => {
+    setSuitability(null);
+    const result = await assessSuitability(dataUrl);
+    setSuitability(result);
+    if (!result.ok) {
+      toast.warning("This photo may have issues — see notes below.");
+    }
+  }, [setSuitability]);
+
   const processFile = useCallback((file: File) => {
     if (!file.type.startsWith("image/")) {
       toast.error("Please upload an image file.");
@@ -42,10 +50,10 @@ export default function StepUpload() {
       setOriginalImage(url);
       setOriginalFile(file);
       setFileInfo({ name: file.name, size: (file.size / 1024).toFixed(1) + " KB" });
+      runSuitabilityCheck(url);
       return;
     }
 
-    // HEIC / HEIF / other formats — attempt canvas conversion
     const objectUrl = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
@@ -67,6 +75,7 @@ export default function StepUpload() {
         setOriginalFile(convertedFile);
         setFileInfo({ name: file.name, size: (file.size / 1024).toFixed(1) + " KB" });
         toast.success(`${ext} converted to JPEG automatically.`);
+        runSuitabilityCheck(convertedUrl);
       }, "image/jpeg", 0.95);
     };
     img.onerror = () => {
@@ -79,7 +88,7 @@ export default function StepUpload() {
       );
     };
     img.src = objectUrl;
-  }, [setOriginalImage, setOriginalFile]);
+  }, [setOriginalImage, setOriginalFile, runSuitabilityCheck]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -91,7 +100,6 @@ export default function StepUpload() {
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) processFile(file);
-    // Reset so the same file can be re-selected after "Choose Different Photo"
     e.target.value = "";
   }, [processFile]);
 
@@ -163,7 +171,6 @@ export default function StepUpload() {
                 muted
                 className="w-full h-full object-cover"
               />
-              {/* Oval face-position guide */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div
                   className="border-2 border-white/70"
@@ -229,7 +236,6 @@ export default function StepUpload() {
               <p className="text-xs text-destructive text-center">{cameraError}</p>
             )}
 
-            {/* Collapsible photo tips */}
             <button
               type="button"
               onClick={() => setShowTips((v) => !v)}
@@ -265,10 +271,32 @@ export default function StepUpload() {
                 {fileInfo.name} · {fileInfo.size}
               </p>
             )}
+
+            {suitability && (
+              <div
+                className={`rounded-md border p-3 text-sm ${
+                  suitability.ok
+                    ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-700"
+                    : "border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700"
+                }`}
+              >
+                <p className={`font-medium text-sm ${suitability.ok ? "text-emerald-800 dark:text-emerald-300" : "text-amber-800 dark:text-amber-300"}`}>
+                  {suitability.ok ? "Photo looks broadly suitable" : "Potential issues detected"}
+                </p>
+                {!suitability.ok && (
+                  <ul className="mt-1.5 list-disc pl-4 space-y-0.5">
+                    {suitability.reasons.map((r) => (
+                      <li key={r} className="text-xs text-amber-700 dark:text-amber-400">{r}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-center gap-3 flex-wrap">
               <Button
                 variant="outline"
-                onClick={() => { setPreview(null); setFileInfo(null); }}
+                onClick={() => { setPreview(null); setFileInfo(null); setSuitability(null); }}
               >
                 Choose Different Photo
               </Button>

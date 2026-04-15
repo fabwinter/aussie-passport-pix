@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { usePhoto } from "@/context/PhotoContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Layers, ArrowLeft, RotateCcw, SkipForward } from "lucide-react";
+import { Loader as Loader2, Layers, ArrowLeft, RotateCcw, SkipForward } from "lucide-react";
 import { toast } from "sonner";
 import { removeBackground } from "@imgly/background-removal";
 
@@ -10,6 +10,7 @@ export default function StepBackgroundRemoval() {
   const { originalImage, bgRemovedImage, setBgRemovedImage, setCurrentStep } = usePhoto();
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
+  const [eta, setEta] = useState<string | null>(null);
   const [hasError, setHasError] = useState(false);
   const [sliderPos, setSliderPos] = useState(50);
   const sliderRef = useRef<HTMLDivElement>(null);
@@ -20,6 +21,8 @@ export default function StepBackgroundRemoval() {
     setLoading(true);
     setHasError(false);
     setProgress("Loading AI model…");
+    setEta(null);
+    const t0 = Date.now();
     try {
       const res = await fetch(originalImage);
       const blob = await res.blob();
@@ -28,7 +31,18 @@ export default function StepBackgroundRemoval() {
       const resultBlob = await removeBackground(blob, {
         progress: (key, current, total) => {
           if (key === "compute:inference") {
-            setProgress(`Processing… ${Math.round((current / total) * 100)}%`);
+            const pct = Math.round((current / total) * 100);
+            setProgress(`Processing… ${pct}%`);
+            if (current > 0) {
+              const elapsed = (Date.now() - t0) / 1000;
+              const rate = current / Math.max(elapsed, 0.1);
+              const remaining = (total - current) / Math.max(rate, 1);
+              if (remaining > 2) {
+                setEta(`${Math.round(remaining)}s remaining`);
+              } else {
+                setEta(null);
+              }
+            }
           }
         },
       });
@@ -122,7 +136,10 @@ export default function StepBackgroundRemoval() {
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <div className="text-center space-y-1">
               <p className="text-sm font-medium">{progress || "Removing background…"}</p>
-              <p className="text-xs text-muted-foreground">This may take a few seconds on first run while the AI model loads</p>
+              <p className="text-xs text-muted-foreground">
+                This may take a few seconds on first run while the AI model loads.
+                {eta && <span className="block mt-1 font-medium text-foreground">{eta}</span>}
+              </p>
             </div>
           </div>
         ) : hasError ? (
