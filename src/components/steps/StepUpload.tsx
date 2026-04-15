@@ -1,29 +1,84 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import { usePhoto } from "@/context/PhotoContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, ImageIcon } from "lucide-react";
+import { Upload, ImageIcon, Camera, X, Circle, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
+
+const PHOTO_TIPS = [
+  { icon: "🔆", text: "Even, shadow-free lighting from the front" },
+  { icon: "📷", text: "Face directly forward, looking straight at the camera" },
+  { icon: "⚪", text: "Plain background — the app will remove it automatically" },
+  { icon: "😐", text: "Neutral expression, mouth closed" },
+  { icon: "🚫", text: "No glasses, hats, or headwear (religious exceptions apply)" },
+  { icon: "📅", text: "Taken within the last 6 months (12 months for under 18)" },
+  { icon: "📐", text: "High resolution — at least 800 × 1000 px recommended" },
+];
 
 export default function StepUpload() {
   const { setOriginalImage, setOriginalFile, setCurrentStep } = usePhoto();
   const [preview, setPreview] = useState<string | null>(null);
   const [fileInfo, setFileInfo] = useState<{ name: string; size: string } | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [showTips, setShowTips] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
+  // Accepts JPG, PNG, WebP natively. For HEIC/HEIF and others,
+  // loads into a canvas and converts to JPEG.
   const processFile = useCallback((file: File) => {
-    if (!["image/jpeg", "image/png"].includes(file.type)) {
-      toast.error("Please upload a JPG or PNG file.");
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file.");
       return;
     }
-    const url = URL.createObjectURL(file);
-    setPreview(url);
-    setOriginalImage(url);
-    setOriginalFile(file);
-    setFileInfo({
-      name: file.name,
-      size: (file.size / 1024).toFixed(1) + " KB",
-    });
+
+    const nativeTypes = ["image/jpeg", "image/png", "image/webp"];
+
+    if (nativeTypes.includes(file.type)) {
+      const url = URL.createObjectURL(file);
+      setPreview(url);
+      setOriginalImage(url);
+      setOriginalFile(file);
+      setFileInfo({ name: file.name, size: (file.size / 1024).toFixed(1) + " KB" });
+      return;
+    }
+
+    // HEIC / HEIF / other formats — attempt canvas conversion
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      canvas.getContext("2d")!.drawImage(img, 0, 0);
+      canvas.toBlob((blob) => {
+        URL.revokeObjectURL(objectUrl);
+        if (!blob) {
+          toast.error("Could not convert this image. Please save as JPG or PNG first.");
+          return;
+        }
+        const ext = file.type.split("/")[1]?.toUpperCase() ?? "IMAGE";
+        const convertedUrl = URL.createObjectURL(blob);
+        const convertedFile = new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" });
+        setPreview(convertedUrl);
+        setOriginalImage(convertedUrl);
+        setOriginalFile(convertedFile);
+        setFileInfo({ name: file.name, size: (file.size / 1024).toFixed(1) + " KB" });
+        toast.success(`${ext} converted to JPEG automatically.`);
+      }, "image/jpeg", 0.95);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      const isHeic = ["image/heic", "image/heif"].includes(file.type);
+      toast.error(
+        isHeic
+          ? "HEIC not supported in this browser. On iPhone: open in Photos → Share → Save to Files as JPEG, then upload."
+          : "Could not read this image. Please try JPG or PNG format."
+      );
+    };
+    img.src = objectUrl;
   }, [setOriginalImage, setOriginalFile]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -36,7 +91,58 @@ export default function StepUpload() {
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) processFile(file);
+    // Reset so the same file can be re-selected after "Choose Different Photo"
+    e.target.value = "";
   }, [processFile]);
+
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setCameraActive(false);
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    setCameraError(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError("Camera not supported in this browser. Please upload a file instead.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } },
+      });
+      streamRef.current = stream;
+      setCameraActive(true);
+    } catch {
+      setCameraError("Camera access denied or unavailable. Please upload a photo instead.");
+      toast.error("Camera access denied.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (cameraActive && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [cameraActive]);
+
+  useEffect(() => {
+    return () => { streamRef.current?.getTracks().forEach((t) => t.stop()); };
+  }, []);
+
+  const capturePhoto = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d")!.drawImage(video, 0, 0);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], "camera-photo.jpg", { type: "image/jpeg" });
+      processFile(file);
+      stopCamera();
+    }, "image/jpeg", 0.95);
+  }, [processFile, stopCamera]);
 
   return (
     <Card className="border-primary/20">
@@ -47,30 +153,105 @@ export default function StepUpload() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
-            dragOver ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-primary/50"
-          }`}
-          onClick={() => document.getElementById("file-input")?.click()}
-        >
-          <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground mb-2">
-            Drag & drop your photo here, or click to browse
-          </p>
-          <p className="text-xs text-muted-foreground">JPG or PNG only</p>
-          <input
-            id="file-input"
-            type="file"
-            accept="image/jpeg,image/png"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-        </div>
+        {cameraActive ? (
+          <div className="space-y-3">
+            <div className="relative rounded-lg overflow-hidden bg-black aspect-[4/3]">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+              />
+              {/* Oval face-position guide */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div
+                  className="border-2 border-white/70"
+                  style={{
+                    width: "42%",
+                    paddingBottom: "56%",
+                    borderRadius: "50% 50% 46% 46% / 40% 40% 60% 60%",
+                    position: "absolute",
+                    top: "8%",
+                  }}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              Centre your face inside the oval. Look straight ahead with a neutral expression.
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={stopCamera} className="flex-1 gap-2">
+                <X className="w-4 h-4" /> Cancel
+              </Button>
+              <Button onClick={capturePhoto} className="flex-1 gap-2">
+                <Circle className="w-4 h-4 fill-current" /> Capture Photo
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+                dragOver ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-primary/50"
+              }`}
+              onClick={() => document.getElementById("file-input")?.click()}
+            >
+              <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground mb-2">
+                Drag & drop your photo here, or click to browse
+              </p>
+              <p className="text-xs text-muted-foreground">JPG, PNG, WebP or HEIC</p>
+              <input
+                id="file-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </div>
 
-        {preview && (
+            <div className="flex items-center gap-3">
+              <div className="flex-1 border-t border-muted-foreground/20" />
+              <span className="text-xs text-muted-foreground">or</span>
+              <div className="flex-1 border-t border-muted-foreground/20" />
+            </div>
+
+            <Button variant="outline" className="w-full gap-2" onClick={startCamera}>
+              <Camera className="w-4 h-4" />
+              Take Photo with Camera
+            </Button>
+
+            {cameraError && (
+              <p className="text-xs text-destructive text-center">{cameraError}</p>
+            )}
+
+            {/* Collapsible photo tips */}
+            <button
+              type="button"
+              onClick={() => setShowTips((v) => !v)}
+              className="w-full flex items-center justify-between text-xs font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg border px-3 py-2"
+            >
+              <span>Tips for the best passport photo</span>
+              {showTips ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+            {showTips && (
+              <ul className="space-y-1.5 text-xs text-muted-foreground rounded-lg border bg-muted/30 px-3 py-3">
+                {PHOTO_TIPS.map((t) => (
+                  <li key={t.text} className="flex gap-2">
+                    <span className="flex-shrink-0">{t.icon}</span>
+                    <span>{t.text}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+
+        {preview && !cameraActive && (
           <div className="space-y-3">
             <div className="flex justify-center">
               <img
@@ -81,10 +262,16 @@ export default function StepUpload() {
             </div>
             {fileInfo && (
               <p className="text-sm text-muted-foreground text-center">
-                {fileInfo.name} • {fileInfo.size}
+                {fileInfo.name} · {fileInfo.size}
               </p>
             )}
-            <div className="flex justify-center">
+            <div className="flex justify-center gap-3 flex-wrap">
+              <Button
+                variant="outline"
+                onClick={() => { setPreview(null); setFileInfo(null); }}
+              >
+                Choose Different Photo
+              </Button>
               <Button onClick={() => setCurrentStep(2)}>
                 Continue to Background Removal →
               </Button>
