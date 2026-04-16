@@ -107,7 +107,11 @@ export default function StepCompliance() {
       }
       const res = await fetch(aiCheckUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          "Apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
         body: JSON.stringify({ image: enhancedImage, country: "AU" }),
       });
       const data = await res.json();
