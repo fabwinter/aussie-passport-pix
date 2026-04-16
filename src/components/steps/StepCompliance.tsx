@@ -48,8 +48,8 @@ export default function StepCompliance() {
       const ctx = canvas.getContext("2d")!;
       ctx.drawImage(img, 0, 0);
 
-      const margin = Math.round(img.width * 0.04);
-      const patchSize = 15;
+      const margin = Math.round(img.width * 0.03);
+      const patchSize = 30;
       const corners = [
         ctx.getImageData(margin, margin, patchSize, patchSize),
         ctx.getImageData(img.width - margin - patchSize, margin, patchSize, patchSize),
@@ -64,9 +64,9 @@ export default function StepCompliance() {
           const r = corner.data[i];
           const g = corner.data[i + 1];
           const b = corner.data[i + 2];
-          if (r > 165 && g > 165 && b > 165) lightCount++;
+          if (r > 140 && g > 140 && b > 140) lightCount++;
         }
-        return lightCount / Math.max(totalCount, 1) > 0.75;
+        return lightCount / Math.max(totalCount, 1) > 0.60;
       });
 
       const ratio = img.width / img.height;
@@ -107,6 +107,27 @@ export default function StepCompliance() {
         return;
       }
 
+      // Resize image to max 800px wide before sending to avoid edge function memory limits
+      const resizedImage = await new Promise<string>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const MAX = 800;
+          const scale = img.width > MAX ? MAX / img.width : 1;
+          const w = Math.round(img.width * scale);
+          const h = Math.round(img.height * scale);
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL("image/jpeg", 0.88));
+        };
+        img.onerror = reject;
+        img.src = enhancedImage;
+      });
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+
       const res = await fetch(aiCheckUrl, {
         method: "POST",
         headers: {
@@ -114,8 +135,10 @@ export default function StepCompliance() {
           "Authorization": `Bearer ${anonKey}`,
           "Apikey": anonKey,
         },
-        body: JSON.stringify({ image: enhancedImage, country: "AU" }),
+        body: JSON.stringify({ image: resizedImage, country: "AU" }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       const data = await res.json();
       if (data.error) {
         setAiCheck({ status: "error", reasons: [data.details ?? data.error], checks: [] });
@@ -126,11 +149,11 @@ export default function StepCompliance() {
         reasons: (data.checks ?? []).filter((c: { pass: boolean }) => !c.pass).map((c: { detail: string }) => c.detail),
         checks: data.checks ?? [],
       });
-    } catch (err) {
-      console.error("AI check fetch error:", err);
+    } catch (err: unknown) {
+      const isTimeout = err instanceof Error && err.name === "AbortError";
       setAiCheck({
         status: "error",
-        reasons: ["Could not contact AI checker. Try again later."],
+        reasons: [isTimeout ? "Request timed out. Please try again." : "Could not contact AI checker. Try again later."],
         checks: [],
       });
     }

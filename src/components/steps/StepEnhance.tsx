@@ -172,6 +172,9 @@ export default function StepEnhance() {
       canvas.height = img.height;
       const ctx = canvas.getContext("2d")!;
 
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
       ctx.filter = `brightness(${brightness}) contrast(${contrast}) saturate(${saturation})`;
       ctx.drawImage(img, 0, 0);
 
@@ -180,10 +183,46 @@ export default function StepEnhance() {
         ctx.filter = `brightness(${brightness}) contrast(${(contrast + 0.3).toFixed(3)}) saturate(${saturation})`;
         ctx.drawImage(img, 0, 0);
         ctx.globalAlpha = 1;
-        ctx.filter = "none";
       }
 
-      setEnhancedImage(canvas.toDataURL("image/jpeg", 0.95));
+      ctx.filter = "none";
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = imageData.data;
+      const margin = Math.round(canvas.width * 0.06);
+      for (let row = 0; row < margin; row++) {
+        for (let col = 0; col < canvas.width; col++) {
+          const i = (row * canvas.width + col) * 4;
+          if (d[i] > 200 && d[i + 1] > 200 && d[i + 2] > 200) {
+            d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
+          }
+        }
+      }
+      for (let row = canvas.height - margin; row < canvas.height; row++) {
+        for (let col = 0; col < canvas.width; col++) {
+          const i = (row * canvas.width + col) * 4;
+          if (d[i] > 200 && d[i + 1] > 200 && d[i + 2] > 200) {
+            d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
+          }
+        }
+      }
+      for (let row = 0; row < canvas.height; row++) {
+        for (let col = 0; col < margin; col++) {
+          const i = (row * canvas.width + col) * 4;
+          if (d[i] > 200 && d[i + 1] > 200 && d[i + 2] > 200) {
+            d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
+          }
+        }
+        for (let col = canvas.width - margin; col < canvas.width; col++) {
+          const i = (row * canvas.width + col) * 4;
+          if (d[i] > 200 && d[i + 1] > 200 && d[i + 2] > 200) {
+            d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
+          }
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+
+      setEnhancedImage(canvas.toDataURL("image/jpeg", 0.97));
       setCurrentStep(5);
     };
     img.src = croppedImage;

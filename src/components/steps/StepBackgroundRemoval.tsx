@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useLayoutEffect, useState, useRef, useCallback } from "react";
 import { usePhoto } from "@/context/PhotoContext";
 import { Button } from "@/components/ui/button";
 import { Loader as Loader2, ArrowLeft, RotateCcw, SkipForward } from "lucide-react";
@@ -9,9 +9,10 @@ export default function StepBackgroundRemoval() {
   const { originalImage, bgRemovedImage, setBgRemovedImage, setCurrentStep } = usePhoto();
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
-  const [eta, setEta] = useState<string | null>(null);
+  const [progressPct, setProgressPct] = useState(0);
   const [hasError, setHasError] = useState(false);
   const [sliderPos, setSliderPos] = useState(50);
+  const [containerWidth, setContainerWidth] = useState(0);
   const sliderRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
@@ -20,33 +21,30 @@ export default function StepBackgroundRemoval() {
     setLoading(true);
     setHasError(false);
     setProgress("Loading AI model...");
-    setEta(null);
-    const t0 = Date.now();
+    setProgressPct(5);
     try {
-      setProgress("Removing background...");
       const resultBlob = await removeBackground(originalImage, {
+        model: "small",
         progress: (key: string, current: number, total: number) => {
-          const steps: Record<string, string> = {
-            "compute:decode": "Decoding image...",
-            "compute:inference": "Running AI model...",
-            "compute:mask": "Applying mask...",
-            "compute:encode": "Encoding result...",
-          };
-          if (steps[key]) {
-            const pct = total > 0 ? Math.round((current / total) * 100) : 0;
-            setProgress(`${steps[key]} ${pct > 0 && pct < 100 ? `${pct}%` : ""}`.trim());
-          }
-          if (key === "fetch:ort-wasm-simd-threaded.jsep") {
-            const elapsed = (Date.now() - t0) / 1000;
-            if (total > 0 && current > 0 && elapsed > 0.5) {
-              const rate = current / elapsed;
-              const remaining = (total - current) / Math.max(rate, 1);
-              if (remaining > 2) setEta(`${Math.round(remaining)}s remaining`);
-              else setEta(null);
-            }
+          if (key.startsWith("fetch:")) {
+            const pct = total > 0 ? Math.round((current / total) * 40) : 0;
+            setProgressPct(5 + pct);
+            setProgress("Downloading AI model...");
+          } else if (key === "compute:inference") {
+            setProgress("Analysing image...");
+            setProgressPct(55);
+          } else if (key === "compute:mask") {
+            setProgress("Creating mask...");
+            setProgressPct(75);
+          } else if (key === "compute:encode") {
+            setProgress("Finalising...");
+            setProgressPct(90);
           }
         },
       });
+
+      setProgress("Applying white background...");
+      setProgressPct(95);
 
       const img = new Image();
       const resultUrl = URL.createObjectURL(resultBlob);
@@ -66,13 +64,15 @@ export default function StepBackgroundRemoval() {
       URL.revokeObjectURL(resultUrl);
 
       setBgRemovedImage(canvas.toDataURL("image/png"));
+      setProgressPct(100);
       toast.success("Background removed successfully!");
     } catch {
       setHasError(true);
-      toast.error("Background removal failed. Please try again or skip if your photo already has a white background.");
+      toast.error("Background removal failed. Please try again or skip.");
     } finally {
       setLoading(false);
       setProgress("");
+      setProgressPct(0);
     }
   }, [originalImage, setBgRemovedImage]);
 
@@ -116,6 +116,17 @@ export default function StepBackgroundRemoval() {
     };
   }, [handlePointerMove]);
 
+  useLayoutEffect(() => {
+    const el = sliderRef.current;
+    if (!el) return;
+    setContainerWidth(el.clientWidth);
+    const ro = new ResizeObserver((entries) => {
+      setContainerWidth(entries[0].contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+
   if (!originalImage) {
     return (
       <div className="rounded-xl border bg-card shadow-sm p-8 text-center">
@@ -134,14 +145,17 @@ export default function StepBackgroundRemoval() {
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
             <Loader2 className="w-7 h-7 animate-spin text-primary" />
           </div>
-          <div className="text-center space-y-1.5">
+          <div className="text-center space-y-3 w-full max-w-xs">
             <p className="text-sm font-medium">{progress || "Removing background..."}</p>
-            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-              This may take a few seconds on first run while the AI model loads.
+            <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+              <div
+                className="bg-primary h-2 rounded-full transition-all duration-500"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              First run downloads the AI model (~20 MB). Subsequent runs are faster.
             </p>
-            {eta && (
-              <p className="text-xs font-medium text-foreground">{eta}</p>
-            )}
           </div>
           <Button size="sm" variant="outline" onClick={skipRemoval} className="gap-2 mt-1">
             <SkipForward className="w-3.5 h-3.5" /> Skip -- my background is already white
@@ -188,19 +202,38 @@ export default function StepBackgroundRemoval() {
 
       <div
         ref={sliderRef}
-        className="relative w-full max-w-sm mx-auto aspect-[7/9] overflow-hidden rounded-xl border shadow-sm cursor-ew-resize select-none touch-none"
+        className="relative w-full max-w-sm mx-auto aspect-[7/9] overflow-hidden rounded-xl border shadow-sm cursor-ew-resize select-none touch-none bg-[#eee]"
         onPointerDown={() => { dragging.current = true; }}
       >
-        <img src={bgRemovedImage} alt="After" className="absolute inset-0 w-full h-full object-cover" />
-        <div className="absolute inset-0 overflow-hidden" style={{ width: `${sliderPos}%` }}>
+        {/* After image -- full width underneath */}
+        <img
+          src={bgRemovedImage}
+          alt="After"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+
+        {/* Before overlay -- container clips, inner image always full container width so it doesn't stretch */}
+        <div
+          className="absolute inset-y-0 left-0 overflow-hidden"
+          style={{ width: `${sliderPos}%` }}
+        >
           <img
             src={originalImage}
             alt="Before"
-            className="absolute inset-0 w-full h-full object-cover"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: containerWidth > 0 ? containerWidth : "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
           />
         </div>
+
+        {/* Divider */}
         <div
-          className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_6px_rgba(0,0,0,0.3)]"
+          className="absolute inset-y-0 w-0.5 bg-white shadow-[0_0_8px_rgba(0,0,0,0.35)] pointer-events-none"
           style={{ left: `${sliderPos}%` }}
         >
           <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center">
@@ -210,8 +243,9 @@ export default function StepBackgroundRemoval() {
             </svg>
           </div>
         </div>
-        <span className="absolute top-2.5 left-2.5 text-[10px] font-semibold bg-black/50 text-white px-2 py-0.5 rounded-full backdrop-blur-sm">Before</span>
-        <span className="absolute top-2.5 right-2.5 text-[10px] font-semibold bg-black/50 text-white px-2 py-0.5 rounded-full backdrop-blur-sm">After</span>
+
+        <span className="absolute top-2.5 left-2.5 text-[10px] font-semibold bg-black/50 text-white px-2 py-0.5 rounded-full pointer-events-none">Before</span>
+        <span className="absolute top-2.5 right-2.5 text-[10px] font-semibold bg-black/50 text-white px-2 py-0.5 rounded-full pointer-events-none">After</span>
       </div>
 
       <div className="flex flex-col sm:flex-row justify-center gap-2.5">
