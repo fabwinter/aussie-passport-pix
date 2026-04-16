@@ -16,9 +16,11 @@ const PHOTO_TIPS = [
 ];
 
 export default function StepUpload() {
-  const { setOriginalImage, setOriginalFile, setCurrentStep, setBgRemovedImage, suitability, setSuitability } = usePhoto();
-  const [preview, setPreview] = useState<string | null>(null);
-  const [fileInfo, setFileInfo] = useState<{ name: string; size: string } | null>(null);
+  const { originalImage, setOriginalImage, originalFile, setOriginalFile, setCurrentStep, setBgRemovedImage, suitability, setSuitability } = usePhoto();
+  const [preview, setPreview] = useState<string | null>(originalImage);
+  const [fileInfo, setFileInfo] = useState<{ name: string; size: string } | null>(
+    originalFile ? { name: originalFile.name, size: (originalFile.size / 1024).toFixed(1) + " KB" } : null
+  );
   const [dragOver, setDragOver] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
