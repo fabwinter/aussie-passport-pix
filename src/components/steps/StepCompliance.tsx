@@ -100,17 +100,14 @@ export default function StepCompliance() {
     if (!enhancedImage || aiCheck.status === "running") return;
     setAiCheck({ status: "running", reasons: [] });
     try {
-      const aiCheckUrl = import.meta.env.VITE_AI_CHECK_URL;
-      if (!aiCheckUrl) {
-        setAiCheck({ status: "error", reasons: ["AI checker endpoint not configured (VITE_AI_CHECK_URL)."] });
-        return;
-      }
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://linepazjdxcvpwkxmrna.supabase.co";
+      const aiCheckUrl = import.meta.env.VITE_AI_CHECK_URL || `${supabaseUrl}/functions/v1/passport-ai-check`;
       const res = await fetch(aiCheckUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          "Apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxpbmVwYXpqZHhjdnB3a3htcm5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNzExODcsImV4cCI6MjA5MTg0NzE4N30.GZj4EsZV2bWxKx3mKmTf1iMZTzSUE5BW7oFMDeT-abE"}`,
+          "Apikey": import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxpbmVwYXpqZHhjdnB3a3htcm5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNzExODcsImV4cCI6MjA5MTg0NzE4N30.GZj4EsZV2bWxKx3mKmTf1iMZTzSUE5BW7oFMDeT-abE",
         },
         body: JSON.stringify({ image: enhancedImage, country: "AU" }),
       });
@@ -280,7 +277,7 @@ export default function StepCompliance() {
             </div>
             {aiCheck.status === "idle" && (
               <p className="text-xs text-muted-foreground">
-                Optional: run an AI check against Australian passport photo requirements. Requires VITE_AI_CHECK_URL to be configured.
+                Optional: run an AI check against Australian passport photo requirements.
               </p>
             )}
             {aiCheck.reasons.length > 0 && aiCheck.status !== "error" && (
