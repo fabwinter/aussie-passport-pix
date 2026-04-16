@@ -97,14 +97,11 @@ export default function StepCompliance() {
     if (!enhancedImage || aiCheck.status === "running") return;
     setAiCheck({ status: "running", reasons: [], checks: [] });
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const aiCheckUrl = import.meta.env.VITE_AI_CHECK_URL || (supabaseUrl ? `${supabaseUrl}/functions/v1/passport-ai-check` : null);
-
-      if (!aiCheckUrl || !anonKey) {
-        setAiCheck({ status: "error", reasons: ["Configuration missing. AI check unavailable."], checks: [] });
-        return;
-      }
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+        || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxpbmVwYXpqZHhjdnB3a3htcm5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNzExODcsImV4cCI6MjA5MTg0NzE4N30.GZj4EsZV2bWxKx3mKmTf1iMZTzSUE5BW7oFMDeT-abE";
+      const aiCheckUrl = import.meta.env.VITE_AI_CHECK_URL
+        || import.meta.env.VITE_SUPABASE_URL && `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/passport-ai-check`
+        || "https://linepazjdxcvpwkxmrna.supabase.co/functions/v1/passport-ai-check";
 
       // Resize image to max 800px wide before sending to avoid edge function memory limits
       const resizedImage = await new Promise<string>((resolve, reject) => {

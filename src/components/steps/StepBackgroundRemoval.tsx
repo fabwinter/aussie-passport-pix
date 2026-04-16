@@ -63,6 +63,27 @@ export default function StepBackgroundRemoval() {
       ctx.drawImage(img, 0, 0);
       URL.revokeObjectURL(resultUrl);
 
+      // Force any semi-transparent or near-white pixels to pure white
+      // This eliminates grey/colour fringing at hair edges caused by alpha blending
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const a = d[i + 3];
+        if (a < 255) {
+          // Semi-transparent pixel: blend remaining transparency with white
+          const blend = a / 255;
+          d[i]     = Math.round(d[i]     * blend + 255 * (1 - blend));
+          d[i + 1] = Math.round(d[i + 1] * blend + 255 * (1 - blend));
+          d[i + 2] = Math.round(d[i + 2] * blend + 255 * (1 - blend));
+          d[i + 3] = 255;
+        }
+        // Snap near-white pixels (background fringe) to pure white
+        if (d[i] > 230 && d[i + 1] > 230 && d[i + 2] > 230) {
+          d[i] = 255; d[i + 1] = 255; d[i + 2] = 255;
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+
       setBgRemovedImage(canvas.toDataURL("image/png"));
       setProgressPct(100);
       toast.success("Background removed successfully!");
