@@ -212,7 +212,7 @@ export default function StepBackgroundRemoval() {
           className="absolute inset-0 w-full h-full object-cover"
         />
 
-        {/* Before overlay -- container clips, inner image always full container width so it doesn't stretch */}
+        {/* Before overlay -- clip div controls reveal width; inner image is full container size */}
         <div
           className="absolute inset-y-0 left-0 overflow-hidden"
           style={{ width: `${sliderPos}%` }}
@@ -224,9 +224,10 @@ export default function StepBackgroundRemoval() {
               position: "absolute",
               top: 0,
               left: 0,
-              width: containerWidth > 0 ? containerWidth : "100%",
+              width: containerWidth > 0 ? `${containerWidth}px` : "100vw",
               height: "100%",
               objectFit: "cover",
+              objectPosition: "left center",
             }}
           />
         </div>

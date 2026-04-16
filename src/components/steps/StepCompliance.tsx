@@ -48,13 +48,12 @@ export default function StepCompliance() {
       const ctx = canvas.getContext("2d")!;
       ctx.drawImage(img, 0, 0);
 
-      const margin = Math.round(img.width * 0.03);
-      const patchSize = 30;
+      const patchSize = 20;
       const corners = [
-        ctx.getImageData(margin, margin, patchSize, patchSize),
-        ctx.getImageData(img.width - margin - patchSize, margin, patchSize, patchSize),
-        ctx.getImageData(margin, img.height - margin - patchSize, patchSize, patchSize),
-        ctx.getImageData(img.width - margin - patchSize, img.height - margin - patchSize, patchSize, patchSize),
+        ctx.getImageData(2, 2, patchSize, patchSize),
+        ctx.getImageData(img.width - patchSize - 2, 2, patchSize, patchSize),
+        ctx.getImageData(2, img.height - patchSize - 2, patchSize, patchSize),
+        ctx.getImageData(img.width - patchSize - 2, img.height - patchSize - 2, patchSize, patchSize),
       ];
 
       const whiteBackground = corners.every((corner) => {
@@ -64,9 +63,9 @@ export default function StepCompliance() {
           const r = corner.data[i];
           const g = corner.data[i + 1];
           const b = corner.data[i + 2];
-          if (r > 140 && g > 140 && b > 140) lightCount++;
+          if (r > 200 && g > 200 && b > 200) lightCount++;
         }
-        return lightCount / Math.max(totalCount, 1) > 0.60;
+        return lightCount / Math.max(totalCount, 1) > 0.70;
       });
 
       const ratio = img.width / img.height;
@@ -100,9 +99,9 @@ export default function StepCompliance() {
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const aiCheckUrl = import.meta.env.VITE_AI_CHECK_URL || `${supabaseUrl}/functions/v1/passport-ai-check`;
+      const aiCheckUrl = import.meta.env.VITE_AI_CHECK_URL || (supabaseUrl ? `${supabaseUrl}/functions/v1/passport-ai-check` : null);
 
-      if (!supabaseUrl || !anonKey) {
+      if (!aiCheckUrl || !anonKey) {
         setAiCheck({ status: "error", reasons: ["Configuration missing. AI check unavailable."], checks: [] });
         return;
       }

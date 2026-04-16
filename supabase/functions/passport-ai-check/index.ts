@@ -82,14 +82,13 @@ function analysePixels(img: DecodedImage): CheckResult {
     detail: `Resolution appears sufficient. Verify in the automated check panel.`,
   });
 
-  // 3. White/light background — check corners
-  const margin = Math.round(width * 0.03);
-  const patch = 30;
+  // 3. White/light background — check very corner patches (2px from edge)
+  const patch = 20;
   const cornerRegions = [
-    { x: margin, y: margin, name: "top-left" },
-    { x: width - margin - patch, y: margin, name: "top-right" },
-    { x: margin, y: height - margin - patch, name: "bottom-left" },
-    { x: width - margin - patch, y: height - margin - patch, name: "bottom-right" },
+    { x: 2, y: 2, name: "top-left" },
+    { x: width - patch - 2, y: 2, name: "top-right" },
+    { x: 2, y: height - patch - 2, name: "bottom-left" },
+    { x: width - patch - 2, y: height - patch - 2, name: "bottom-right" },
   ];
   const failingCorners: string[] = [];
   for (const { x, y, name } of cornerRegions) {
@@ -98,11 +97,11 @@ function analysePixels(img: DecodedImage): CheckResult {
     for (let row = y; row < Math.min(y + patch, height); row++) {
       for (let col = x; col < Math.min(x + patch, width); col++) {
         const [r, g, b] = px(col, row);
-        if (r > 140 && g > 140 && b > 140) lightCount++;
+        if (r > 200 && g > 200 && b > 200) lightCount++;
         total++;
       }
     }
-    if (total > 0 && lightCount / total < 0.60) failingCorners.push(name);
+    if (total > 0 && lightCount / total < 0.70) failingCorners.push(name);
   }
   const bgOk = failingCorners.length === 0;
   checks.push({
