@@ -121,10 +121,11 @@ export default function StepCompliance() {
         reasons: (data.checks ?? []).filter((c: { pass: boolean }) => !c.pass).map((c: { detail: string }) => c.detail),
         checks: data.checks ?? [],
       });
-    } catch {
+    } catch (err) {
+      console.error("AI check fetch error:", err);
       setAiCheck({
         status: "error",
-        reasons: ["Could not contact AI checker. Try again later."],
+        reasons: [String(err)],
         checks: [],
       });
     }

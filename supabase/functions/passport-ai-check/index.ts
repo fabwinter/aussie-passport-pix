@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import * as jpeg from "npm:jpeg-js@0.4.4";
-import { PNG } from "npm:pngjs@7.0.0";
+import UPNG from "npm:upng-js@2.1.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,7 +24,7 @@ interface CheckResult {
   checks: CheckItem[];
 }
 
-interface ImageData {
+interface DecodedImage {
   width: number;
   height: number;
   data: Uint8Array;
@@ -42,22 +42,17 @@ function base64ToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string }
   return { bytes, mimeType };
 }
 
-async function decodeImage(bytes: Uint8Array, mimeType: string): Promise<ImageData> {
+function decodeImage(bytes: Uint8Array, mimeType: string): DecodedImage {
   if (mimeType === "image/png") {
-    return new Promise((resolve, reject) => {
-      const png = new PNG();
-      png.on("parsed", function () {
-        resolve({ width: this.width, height: this.height, data: new Uint8Array(this.data) });
-      });
-      png.on("error", reject);
-      png.parse(bytes as unknown as Buffer);
-    });
+    const img = UPNG.decode(bytes.buffer);
+    const rgba = UPNG.toRGBA8(img)[0];
+    return { width: img.width, height: img.height, data: new Uint8Array(rgba) };
   }
-  const decoded = jpeg.decode(bytes, { useTArray: true });
+  const decoded = jpeg.decode(bytes, { useTArray: true, maxMemoryUsageInMB: 512 });
   return { width: decoded.width, height: decoded.height, data: decoded.data };
 }
 
-function analysePixels(img: ImageData): CheckResult {
+function analysePixels(img: DecodedImage): CheckResult {
   const { width, height, data } = img;
   const checks: CheckItem[] = [];
 
@@ -277,7 +272,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const { bytes, mimeType } = base64ToBytes(body.image);
-    const imgData = await decodeImage(bytes, mimeType);
+    const imgData = decodeImage(bytes, mimeType);
     const result = analysePixels(imgData);
 
     return new Response(JSON.stringify(result), {
