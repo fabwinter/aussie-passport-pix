@@ -266,7 +266,7 @@ export default function StepCompliance() {
               )}
               {aiCheck.status === "fail" && (
                 <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">
-                  Potential issues detected — see notes below.
+                  Potential issues detected.
                 </span>
               )}
               {aiCheck.status === "error" && (
@@ -280,12 +280,17 @@ export default function StepCompliance() {
                 Optional: run an AI check against Australian passport photo requirements.
               </p>
             )}
-            {aiCheck.reasons.length > 0 && aiCheck.status !== "error" && (
-              <ul className="list-disc pl-5 text-xs text-muted-foreground space-y-0.5">
+            {aiCheck.status === "fail" && aiCheck.reasons.length > 0 && (
+              <ul className="list-disc pl-5 text-xs text-amber-700 dark:text-amber-400 space-y-1">
                 {aiCheck.reasons.map((r) => (
                   <li key={r}>{r}</li>
                 ))}
               </ul>
+            )}
+            {aiCheck.status === "fail" && aiCheck.reasons.length === 0 && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                The photo may not meet Australian passport standards. Please review manually.
+              </p>
             )}
           </div>
         </div>
