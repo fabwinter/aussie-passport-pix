@@ -91,7 +91,7 @@ export default function StepCrop() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [crop, setCrop] = useState<Crop>();
   const [completedCrop, setCompletedCrop] = useState<Crop>();
-  const [overlayDims, setOverlayDims] = useState<{ width: number; height: number } | null>(null);
+  const [imgDims, setImgDims] = useState<{ width: number; height: number } | null>(null);
   const [showOverlay, setShowOverlay] = useState(true);
 
   const onImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -104,12 +104,12 @@ export default function StepCrop() {
     setCompletedCrop(c);
   }, []);
 
-  // Track rendered image dimensions for overlay sizing
+  // Track rendered image dimensions
   useEffect(() => {
     if (!imgRef.current) return;
     const obs = new ResizeObserver(() => {
       if (imgRef.current) {
-        setOverlayDims({
+        setImgDims({
           width: imgRef.current.clientWidth,
           height: imgRef.current.clientHeight,
         });
@@ -118,6 +118,14 @@ export default function StepCrop() {
     obs.observe(imgRef.current);
     return () => obs.disconnect();
   }, []);
+
+  // Compute the pixel rect of the active crop selection within the rendered image
+  const cropRect = completedCrop && imgDims ? {
+    left: (completedCrop.x / 100) * imgDims.width,
+    top: (completedCrop.y / 100) * imgDims.height,
+    width: (completedCrop.width / 100) * imgDims.width,
+    height: (completedCrop.height / 100) * imgDims.height,
+  } : null;
 
   const applyCrop = useCallback(() => {
     if (!imgRef.current || !completedCrop) return;
@@ -196,12 +204,17 @@ export default function StepCrop() {
                 className="max-h-[420px] block"
               />
             </ReactCrop>
-            {showOverlay && overlayDims && (
+            {showOverlay && cropRect && (
               <div
-                className="absolute inset-0 pointer-events-none"
-                style={{ width: overlayDims.width, height: overlayDims.height }}
+                className="absolute pointer-events-none"
+                style={{
+                  left: cropRect.left,
+                  top: cropRect.top,
+                  width: cropRect.width,
+                  height: cropRect.height,
+                }}
               >
-                <HeadOverlay width={overlayDims.width} height={overlayDims.height} />
+                <HeadOverlay width={cropRect.width} height={cropRect.height} />
               </div>
             )}
           </div>

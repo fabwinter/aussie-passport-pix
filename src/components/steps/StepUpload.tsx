@@ -3,7 +3,7 @@ import { usePhoto } from "@/context/PhotoContext";
 import { assessSuitability } from "@/lib/suitability";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Image as ImageIcon, Camera, X, Circle, ChevronDown, ChevronUp, SwitchCamera } from "lucide-react";
+import { Upload, Image as ImageIcon, Camera, X, Circle, ChevronDown, ChevronUp, SwitchCamera, SkipForward } from "lucide-react";
 import { toast } from "sonner";
 
 const PHOTO_TIPS = [
@@ -17,7 +17,7 @@ const PHOTO_TIPS = [
 ];
 
 export default function StepUpload() {
-  const { setOriginalImage, setOriginalFile, setCurrentStep, suitability, setSuitability } = usePhoto();
+  const { setOriginalImage, setOriginalFile, setCurrentStep, setBgRemovedImage, suitability, setSuitability } = usePhoto();
   const [preview, setPreview] = useState<string | null>(null);
   const [fileInfo, setFileInfo] = useState<{ name: string; size: string } | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -146,6 +146,22 @@ export default function StepUpload() {
   useEffect(() => {
     return () => { streamRef.current?.getTracks().forEach((t) => t.stop()); };
   }, []);
+
+  const skipToCrop = useCallback((imageUrl: string) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      setBgRemovedImage(canvas.toDataURL("image/png"));
+      setCurrentStep(3);
+    };
+    img.src = imageUrl;
+  }, [setBgRemovedImage, setCurrentStep]);
 
   const capturePhoto = useCallback(() => {
     const video = videoRef.current;
@@ -322,6 +338,14 @@ export default function StepUpload() {
                 onClick={() => { setPreview(null); setFileInfo(null); setSuitability(null); }}
               >
                 Choose Different Photo
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => preview && skipToCrop(preview)}
+                className="gap-2"
+                title="Skip background removal and go straight to crop"
+              >
+                <SkipForward className="w-4 h-4" /> Skip BG Removal
               </Button>
               <Button onClick={() => setCurrentStep(2)}>
                 Continue to Background Removal →
