@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { PhotoProvider, usePhoto } from "@/context/PhotoContext";
 import StepProgress from "@/components/StepProgress";
 import StandardsSidebar from "@/components/StandardsSidebar";
@@ -20,8 +21,27 @@ const stepMap: Record<number, () => JSX.Element> = {
 };
 
 function AppContent() {
-  const { currentStep } = usePhoto();
+  const { currentStep, setCurrentStep } = usePhoto();
   const StepComponent = stepMap[currentStep];
+  const prevStepRef = useRef(currentStep);
+
+  useEffect(() => {
+    const prev = prevStepRef.current;
+    prevStepRef.current = currentStep;
+    if (currentStep > prev) {
+      window.history.pushState({ step: currentStep }, "");
+    }
+  }, [currentStep]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const target = currentStep > 1 ? currentStep - 1 : 1;
+      setCurrentStep(target);
+      window.history.pushState({ step: target }, "");
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [setCurrentStep, currentStep]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
