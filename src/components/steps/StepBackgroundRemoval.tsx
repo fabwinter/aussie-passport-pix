@@ -212,14 +212,6 @@ export default function StepBackgroundRemoval() {
                 onClick={() => { setBgRemovedImage(null); removeBg(); }}
                 className="gap-2"
                 title="Re-run background removal on the same photo"
-              <Button
-                variant="outline"
-                onClick={skipRemoval}
-                className="gap-2"
-                title="Skip background removal and use original photo"
-              >
-                <SkipForward className="w-4 h-4" /> Skip
-              </Button>
               >
                 <RotateCcw className="w-4 h-4" /> Remove Again
               </Button>
@@ -227,9 +219,9 @@ export default function StepBackgroundRemoval() {
                 variant="outline"
                 onClick={skipRemoval}
                 className="gap-2"
-                title="Skip and use original photo as-is"
+                title="Skip background removal and use original photo"
               >
-                <SkipForward className="w-4 h-4" /> Use Original
+                <SkipForward className="w-4 h-4" /> Skip
               </Button>
               <Button onClick={() => setCurrentStep(3)}>
                 Continue to Crop →
