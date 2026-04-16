@@ -58,21 +58,21 @@ export default function StepCompliance() {
         ctx.getImageData(img.width - margin - patchSize, img.height - margin - patchSize, patchSize, patchSize),
       ];
 
+      // Relaxed: accept white or light grey (neutral) background
       const whiteBackground = corners.every((corner) => {
-        let brightCount = 0;
+        let lightCount = 0;
         const totalCount = corner.data.length / 4;
         for (let i = 0; i < corner.data.length; i += 4) {
           const r = corner.data[i];
           const g = corner.data[i + 1];
           const b = corner.data[i + 2];
-          if (r > 210 && g > 210 && b > 210) brightCount++;
+          if (r > 165 && g > 165 && b > 165) lightCount++;
         }
-        return brightCount / Math.max(totalCount, 1) > 0.9;
+        return lightCount / Math.max(totalCount, 1) > 0.75;
       });
 
       const ratio = img.width / img.height;
       const correctAspectRatio = Math.abs(ratio - 7 / 9) < 0.02;
-
       const sufficientResolution = img.width >= 827 && img.height >= 1063;
 
       const sample = ctx.getImageData(
@@ -98,7 +98,7 @@ export default function StepCompliance() {
 
   const runAiCheck = useCallback(async () => {
     if (!enhancedImage || aiCheck.status === "running") return;
-    setAiCheck({ status: "running", reasons: [] });
+    setAiCheck({ status: "running", reasons: [], checks: [] });
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://linepazjdxcvpwkxmrna.supabase.co";
       const aiCheckUrl = import.meta.env.VITE_AI_CHECK_URL || `${supabaseUrl}/functions/v1/passport-ai-check`;
@@ -112,14 +112,20 @@ export default function StepCompliance() {
         body: JSON.stringify({ image: enhancedImage, country: "AU" }),
       });
       const data = await res.json();
+      if (data.error) {
+        setAiCheck({ status: "error", reasons: [data.details ?? data.error], checks: [] });
+        return;
+      }
       setAiCheck({
         status: data.pass ? "pass" : "fail",
-        reasons: data.reasons ?? [],
+        reasons: (data.checks ?? []).filter((c: { pass: boolean }) => !c.pass).map((c: { detail: string }) => c.detail),
+        checks: data.checks ?? [],
       });
     } catch {
       setAiCheck({
         status: "error",
         reasons: ["Could not contact AI checker. Try again later."],
+        checks: [],
       });
     }
   }, [enhancedImage, aiCheck.status, setAiCheck]);
@@ -133,8 +139,8 @@ export default function StepCompliance() {
     fixLabel?: string;
   }[] = [
     {
-      label: "White background",
-      detail: "Corner patches must be ≥90% bright pixels (>210/255)",
+      label: "White or light grey background",
+      detail: "Corner patches must be ≥75% light pixels (>165/255) — white or neutral grey accepted",
       pass: complianceResults.whiteBackground,
       fix: "Re-run background removal or adjust lighting in the Enhance step.",
       fixStep: 2,
@@ -245,9 +251,9 @@ export default function StepCompliance() {
 
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Optional AI Check (Australian standards)
+            AI Check — Australian Passport Standards
           </p>
-          <div className="rounded-lg border px-3 py-3 space-y-2">
+          <div className="rounded-lg border px-3 py-3 space-y-3">
             <div className="flex items-center gap-3 flex-wrap">
               <Button
                 variant="outline"
@@ -257,16 +263,16 @@ export default function StepCompliance() {
                 onClick={runAiCheck}
               >
                 <Bot className="w-4 h-4" />
-                {aiCheck.status === "running" ? "Checking…" : "Run AI Passport Check"}
+                {aiCheck.status === "running" ? "Analysing…" : aiCheck.status !== "idle" ? "Re-run AI Check" : "Run AI Passport Check"}
               </Button>
               {aiCheck.status === "pass" && (
                 <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                  Likely to pass Australian passport photo standards.
+                  All checks passed — likely to meet Australian passport photo standards.
                 </span>
               )}
               {aiCheck.status === "fail" && (
                 <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">
-                  Potential issues detected.
+                  Some checks failed — review the report below.
                 </span>
               )}
               {aiCheck.status === "error" && (
@@ -275,22 +281,41 @@ export default function StepCompliance() {
                 </span>
               )}
             </div>
+
             {aiCheck.status === "idle" && (
               <p className="text-xs text-muted-foreground">
-                Optional: run an AI check against Australian passport photo requirements.
+                Run an AI pixel analysis against Australian passport photo requirements. Checks aspect ratio, resolution, background, lighting, colour, and head position.
               </p>
             )}
-            {aiCheck.status === "fail" && aiCheck.reasons.length > 0 && (
-              <ul className="list-disc pl-5 text-xs text-amber-700 dark:text-amber-400 space-y-1">
-                {aiCheck.reasons.map((r) => (
-                  <li key={r}>{r}</li>
+
+            {(aiCheck.status === "pass" || aiCheck.status === "fail") && aiCheck.checks.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Full Report</p>
+                {aiCheck.checks.map((c) => (
+                  <div key={c.label} className="rounded-md border px-3 py-2 space-y-1">
+                    <div className="flex items-center gap-2 text-sm">
+                      {c.pass
+                        ? <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
+                        : <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                      }
+                      <span className="flex-1 font-medium text-sm">{c.label}</span>
+                      <Badge
+                        variant={c.pass ? "default" : "outline"}
+                        className={`ml-auto text-xs ${c.pass ? "bg-success text-success-foreground" : "border-amber-500 text-amber-700 dark:text-amber-400"}`}
+                      >
+                        {c.pass ? "Pass" : "Fail"}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-6">{c.detail}</p>
+                    {c.fix && (
+                      <p className="text-xs pl-6">
+                        <span className="font-medium text-amber-700 dark:text-amber-400">Fix: </span>
+                        <span className="text-muted-foreground">{c.fix}</span>
+                      </p>
+                    )}
+                  </div>
                 ))}
-              </ul>
-            )}
-            {aiCheck.status === "fail" && aiCheck.reasons.length === 0 && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
-                The photo may not meet Australian passport standards. Please review manually.
-              </p>
+              </div>
             )}
           </div>
         </div>

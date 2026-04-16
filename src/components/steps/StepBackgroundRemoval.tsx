@@ -134,7 +134,7 @@ export default function StepBackgroundRemoval() {
       </CardHeader>
       <CardContent className="space-y-4">
         {loading ? (
-          <div className="flex flex-col items-center gap-4 py-12">
+          <div className="flex flex-col items-center gap-4 py-10">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <div className="text-center space-y-1">
               <p className="text-sm font-medium">{progress || "Removing background…"}</p>
@@ -143,6 +143,9 @@ export default function StepBackgroundRemoval() {
                 {eta && <span className="block mt-1 font-medium text-foreground">{eta}</span>}
               </p>
             </div>
+            <Button size="sm" variant="outline" onClick={skipRemoval} className="gap-2 mt-2">
+              <SkipForward className="w-3.5 h-3.5" /> Skip — my background is already white/grey
+            </Button>
           </div>
         ) : hasError ? (
           <div className="space-y-4">
@@ -209,8 +212,24 @@ export default function StepBackgroundRemoval() {
                 onClick={() => { setBgRemovedImage(null); removeBg(); }}
                 className="gap-2"
                 title="Re-run background removal on the same photo"
+              <Button
+                variant="outline"
+                onClick={skipRemoval}
+                className="gap-2"
+                title="Skip background removal and use original photo"
+              >
+                <SkipForward className="w-4 h-4" /> Skip
+              </Button>
               >
                 <RotateCcw className="w-4 h-4" /> Remove Again
+              </Button>
+              <Button
+                variant="outline"
+                onClick={skipRemoval}
+                className="gap-2"
+                title="Skip and use original photo as-is"
+              >
+                <SkipForward className="w-4 h-4" /> Use Original
               </Button>
               <Button onClick={() => setCurrentStep(3)}>
                 Continue to Crop →

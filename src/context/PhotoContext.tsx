@@ -12,9 +12,17 @@ export interface SuitabilityAssessment {
   reasons: string[];
 }
 
+export interface AiCheckItem {
+  label: string;
+  pass: boolean;
+  detail: string;
+  fix?: string;
+}
+
 export interface AiCheckResult {
   status: "idle" | "running" | "pass" | "fail" | "error";
   reasons: string[];
+  checks: AiCheckItem[];
 }
 
 interface PhotoContextType {
@@ -75,7 +83,7 @@ export function PhotoProvider({ children }: { children: React.ReactNode }) {
   const [complianceResults, setComplianceResults] = useState<ComplianceResults>(defaultCompliance);
   const [suitability, setSuitability] = useState<SuitabilityAssessment | null>(null);
   const [advancedEnhanceVisible, setAdvancedEnhanceVisible] = useState(false);
-  const [aiCheck, setAiCheck] = useState<AiCheckResult>({ status: "idle", reasons: [] });
+  const [aiCheck, setAiCheck] = useState<AiCheckResult>({ status: "idle", reasons: [], checks: [] });
 
   const resetAll = useCallback(() => {
     setCurrentStep(1);
@@ -92,7 +100,7 @@ export function PhotoProvider({ children }: { children: React.ReactNode }) {
     setComplianceResults(defaultCompliance);
     setSuitability(null);
     setAdvancedEnhanceVisible(false);
-    setAiCheck({ status: "idle", reasons: [] });
+    setAiCheck({ status: "idle", reasons: [], checks: [] });
   }, []);
 
   return (

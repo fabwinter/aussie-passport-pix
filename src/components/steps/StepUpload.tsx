@@ -3,7 +3,7 @@ import { usePhoto } from "@/context/PhotoContext";
 import { assessSuitability } from "@/lib/suitability";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Image as ImageIcon, Camera, X, Circle, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, Image as ImageIcon, Camera, X, Circle, ChevronDown, ChevronUp, SwitchCamera } from "lucide-react";
 import { toast } from "sonner";
 
 const PHOTO_TIPS = [
@@ -24,6 +24,7 @@ export default function StepUpload() {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [showTips, setShowTips] = useState(false);
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -109,23 +110,32 @@ export default function StepUpload() {
     setCameraActive(false);
   }, []);
 
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (mode: "environment" | "user" = "environment") => {
     setCameraError(null);
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraError("Camera not supported in this browser. Please upload a file instead.");
       return;
     }
+    // Stop existing stream before starting new one
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } },
+        video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 960 } },
       });
       streamRef.current = stream;
+      setFacingMode(mode);
       setCameraActive(true);
     } catch {
       setCameraError("Camera access denied or unavailable. Please upload a photo instead.");
       toast.error("Camera access denied.");
     }
   }, []);
+
+  const switchCamera = useCallback(() => {
+    const next = facingMode === "environment" ? "user" : "environment";
+    startCamera(next);
+  }, [facingMode, startCamera]);
 
   useEffect(() => {
     if (cameraActive && videoRef.current && streamRef.current) {
@@ -183,6 +193,19 @@ export default function StepUpload() {
                   }}
                 />
               </div>
+              <button
+                type="button"
+                onClick={switchCamera}
+                className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                title="Switch camera"
+              >
+                <SwitchCamera className="w-5 h-5" />
+              </button>
+              <div className="absolute bottom-2 left-2 right-2 flex justify-center">
+                <span className={`text-xs px-2 py-1 rounded font-medium ${facingMode === "environment" ? "bg-emerald-600/80 text-white" : "bg-amber-600/80 text-white"}`}>
+                  {facingMode === "environment" ? "Rear camera (recommended)" : "Front camera — not recommended for passports"}
+                </span>
+              </div>
             </div>
             <p className="text-xs text-muted-foreground text-center">
               Centre your face inside the oval. Look straight ahead with a neutral expression.
@@ -227,7 +250,7 @@ export default function StepUpload() {
               <div className="flex-1 border-t border-muted-foreground/20" />
             </div>
 
-            <Button variant="outline" className="w-full gap-2" onClick={startCamera}>
+            <Button variant="outline" className="w-full gap-2" onClick={() => startCamera("environment")}>
               <Camera className="w-4 h-4" />
               Take Photo with Camera
             </Button>
