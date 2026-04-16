@@ -1,20 +1,19 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { usePhoto } from "@/context/PhotoContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Printer, RotateCcw, ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
+import { Download, Printer, RotateCcw, ArrowLeft, ChevronDown, ChevronUp, CircleCheck as CheckCircle } from "lucide-react";
 
-const SHEET_W = 1181; // 10 cm at 300 DPI
-const SHEET_H = 1772; // 15 cm at 300 DPI
+const SHEET_W = 1181;
+const SHEET_H = 1772;
 const PHOTO_W = 827;
 const PHOTO_H = 1063;
 
 const LAB_INSTRUCTIONS = [
-  { icon: "🖨️", text: 'Print on 10×15 cm (4×6 inch) photo paper at 100% scale — disable "fit to page" or "scale to fit"' },
-  { icon: "🏪", text: "At a photo lab: upload the file and specify 10×15 cm, standard glossy finish, no borders" },
-  { icon: "✂️", text: "Use the dashed cut guides to separate the four passport photos after printing" },
-  { icon: "📏", text: "Each finished photo will be exactly 35×45 mm when cut along the guides" },
-  { icon: "💡", text: "Glossy or matte finish both accepted — standard 200–300 gsm photo paper recommended" },
+  { text: 'Print on 10x15 cm (4x6 inch) photo paper at 100% scale -- disable "fit to page"' },
+  { text: "At a photo lab: upload the file and specify 10x15 cm, standard glossy finish, no borders" },
+  { text: "Use the dashed cut guides to separate the four passport photos after printing" },
+  { text: "Each finished photo will be exactly 35x45 mm when cut along the guides" },
+  { text: "Glossy or matte finish both accepted -- standard 200-300 gsm photo paper recommended" },
 ];
 
 export default function StepPrint() {
@@ -31,11 +30,9 @@ export default function StepPrint() {
       canvas.height = SHEET_H;
       const ctx = canvas.getContext("2d")!;
 
-      // White sheet background
       ctx.fillStyle = "#FFFFFF";
       ctx.fillRect(0, 0, SHEET_W, SHEET_H);
 
-      // Photo dimensions scaled to fit 2×2 on the sheet with equal margins
       const scaledW = Math.floor((SHEET_W - 60) / 2);
       const scaledH = Math.floor(scaledW * (PHOTO_H / PHOTO_W));
       const gapX = Math.floor((SHEET_W - scaledW * 2) / 3);
@@ -49,10 +46,7 @@ export default function StepPrint() {
       ];
 
       positions.forEach(([x, y]) => {
-        // Draw photo
         ctx.drawImage(img, x, y, scaledW, scaledH);
-
-        // Dashed cut guides
         ctx.save();
         ctx.setLineDash([10, 6]);
         ctx.strokeStyle = "#BBBBBB";
@@ -61,12 +55,11 @@ export default function StepPrint() {
         ctx.restore();
       });
 
-      // Sheet label
       ctx.fillStyle = "#888888";
       ctx.font = "bold 18px sans-serif";
       ctx.textAlign = "center";
       ctx.fillText(
-        "Australian Passport Photo · 35×45 mm · Print at 10×15 cm (4×6 inch) · Cut along guides",
+        "Australian Passport Photo -- 35x45 mm -- Print at 10x15 cm (4x6 inch) -- Cut along guides",
         SHEET_W / 2,
         SHEET_H - 18
       );
@@ -93,7 +86,6 @@ export default function StepPrint() {
     a.click();
   };
 
-  // Opens an invisible iframe and triggers the browser print dialog
   const handlePrint = useCallback(() => {
     if (!printSheet) return;
     const iframe = document.createElement("iframe");
@@ -111,7 +103,6 @@ export default function StepPrint() {
       </style>
     </head><body><img src="${printSheet}" /></body></html>`);
     doc.close();
-    // Small delay to ensure image data is ready in the iframe
     setTimeout(() => {
       iframe.contentWindow?.focus();
       iframe.contentWindow?.print();
@@ -121,83 +112,74 @@ export default function StepPrint() {
 
   if (!enhancedImage) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center text-muted-foreground text-sm">
-          Complete enhancement first.
-        </CardContent>
-      </Card>
+      <div className="rounded-xl border bg-card shadow-sm p-8 text-center text-muted-foreground text-sm">
+        Complete enhancement first.
+      </div>
     );
   }
 
   return (
-    <Card className="border-primary/20">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Printer className="w-5 h-5 text-primary" />
-          Printable 10×15 cm Template
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Print sheet preview */}
-        <div className="flex justify-center">
-          <canvas ref={canvasRef} className="max-w-full max-h-80 rounded-lg border shadow-sm" />
+    <div className="space-y-5">
+      <div className="text-center space-y-1.5">
+        <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-2">
+          <CheckCircle className="w-6 h-6 text-success" />
         </div>
-
-        <p className="text-xs text-center text-muted-foreground">
-          Four 35×45 mm photos with dashed cut guides — ready for printing on 10×15 cm paper
+        <h2 className="text-lg font-bold text-foreground">Your Photos Are Ready</h2>
+        <p className="text-xs text-muted-foreground">
+          Four 35x45 mm photos on a 10x15 cm sheet with cut guides
         </p>
+      </div>
 
-        {/* Primary actions */}
-        <div className="flex flex-col sm:flex-row justify-center gap-3">
-          <Button onClick={handlePrint} className="gap-2">
-            <Printer className="w-4 h-4" /> Print Now
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => printSheet && downloadFile(printSheet, "passport-print-10x15cm.jpg")}
-            className="gap-2"
-          >
-            <Download className="w-4 h-4" /> Download Print Template
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => enhancedImage && downloadFile(enhancedImage, "passport-photo-35x45mm-600dpi.jpg")}
-            className="gap-2"
-          >
-            <Download className="w-4 h-4" /> Download Single Photo
-          </Button>
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="bg-muted/30 flex justify-center p-4">
+          <canvas ref={canvasRef} className="max-w-full max-h-72 rounded-lg shadow-sm" />
         </div>
+      </div>
 
-        {/* Collapsible print instructions */}
-        <button
-          type="button"
-          onClick={() => setShowInstructions((v) => !v)}
-          className="w-full flex items-center justify-between text-xs font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg border px-3 py-2"
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <Button onClick={handlePrint} className="gap-2 h-11">
+          <Printer className="w-4 h-4" /> Print Now
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => printSheet && downloadFile(printSheet, "passport-print-10x15cm.jpg")}
+          className="gap-2 h-11"
         >
-          <span>How to print these photos</span>
-          {showInstructions ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-        </button>
-        {showInstructions && (
-          <ul className="space-y-2 text-xs text-muted-foreground rounded-lg border bg-muted/30 px-3 py-3">
-            {LAB_INSTRUCTIONS.map((item) => (
-              <li key={item.text} className="flex gap-2">
-                <span className="flex-shrink-0">{item.icon}</span>
-                <span>{item.text}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+          <Download className="w-4 h-4" /> Print Template
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => enhancedImage && downloadFile(enhancedImage, "passport-photo-35x45mm.jpg")}
+          className="gap-2 h-11"
+        >
+          <Download className="w-4 h-4" /> Single Photo
+        </Button>
+      </div>
 
-        {/* Nav */}
-        <div className="flex justify-center gap-3 pt-1">
-          <Button variant="outline" onClick={() => setCurrentStep(5)} className="gap-2">
-            <ArrowLeft className="w-4 h-4" /> Back
-          </Button>
-          <Button variant="ghost" onClick={resetAll} className="gap-2 text-muted-foreground">
-            <RotateCcw className="w-4 h-4" /> Start Over
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      <button
+        type="button"
+        onClick={() => setShowInstructions((v) => !v)}
+        className="w-full flex items-center justify-between text-xs font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg border px-4 py-2.5"
+      >
+        <span>How to print these photos</span>
+        {showInstructions ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+      </button>
+      {showInstructions && (
+        <ol className="space-y-2 text-xs text-muted-foreground rounded-lg border bg-muted/30 px-4 py-3.5 list-decimal list-inside">
+          {LAB_INSTRUCTIONS.map((item) => (
+            <li key={item.text}>{item.text}</li>
+          ))}
+        </ol>
+      )}
+
+      <div className="flex flex-col sm:flex-row justify-center gap-2.5 pt-1">
+        <Button variant="outline" onClick={() => setCurrentStep(5)} className="gap-2">
+          <ArrowLeft className="w-4 h-4" /> Back
+        </Button>
+        <Button variant="ghost" onClick={resetAll} className="gap-2 text-muted-foreground">
+          <RotateCcw className="w-4 h-4" /> Start Over
+        </Button>
+      </div>
+    </div>
   );
 }

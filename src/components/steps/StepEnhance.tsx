@@ -1,10 +1,43 @@
 import { useCallback, useState } from "react";
 import { usePhoto } from "@/context/PhotoContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Sun, RotateCcw, ArrowLeft, Wand as Wand2, SunMedium } from "lucide-react";
+import { RotateCcw, ArrowLeft, Wand as Wand2, SunMedium, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
+
+function SliderControl({
+  label,
+  value,
+  onValueChange,
+  min,
+  max,
+  step,
+}: {
+  label: string;
+  value: number;
+  onValueChange: (v: number[]) => void;
+  min: number;
+  max: number;
+  step: number;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between text-sm">
+        <span className="font-medium">{label}</span>
+        <span className="text-muted-foreground tabular-nums">{value.toFixed(2)}</span>
+      </div>
+      <div style={{ touchAction: "none" }}>
+        <Slider
+          value={[value]}
+          onValueChange={onValueChange}
+          min={min}
+          max={max}
+          step={step}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function StepEnhance() {
   const {
@@ -62,8 +95,8 @@ export default function StepEnhance() {
       if (pixelCount === 0) { setIsAutoEnhancing(false); return; }
 
       const avgLuma = totalLuma / pixelCount;
-      const avgSat  = totalSat  / pixelCount;
-      const range   = maxLuma - minLuma;
+      const avgSat = totalSat / pixelCount;
+      const range = maxLuma - minLuma;
 
       const targetLuma = 160;
       const newBrightness = parseFloat(
@@ -83,8 +116,8 @@ export default function StepEnhance() {
         (avgSat < targetSat
           ? Math.min(1.0 + (targetSat - avgSat) * 4, 1.4)
           : avgSat > 0.40
-          ? Math.max(1.0 - (avgSat - 0.40) * 1.5, 0.8)
-          : 1.0
+            ? Math.max(1.0 - (avgSat - 0.40) * 1.5, 0.8)
+            : 1.0
         ).toFixed(2)
       );
 
@@ -117,7 +150,7 @@ export default function StepEnhance() {
         const luma = 0.299 * r + 0.587 * g + 0.114 * b;
         if (luma < 100) {
           const boost = ((100 - luma) / 100) * 40;
-          data[i]     = Math.min(255, r + boost);
+          data[i] = Math.min(255, r + boost);
           data[i + 1] = Math.min(255, g + boost);
           data[i + 2] = Math.min(255, b + boost);
         }
@@ -165,137 +198,102 @@ export default function StepEnhance() {
 
   if (!croppedImage) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center text-muted-foreground text-sm">
-          Complete cropping first.
-        </CardContent>
-      </Card>
+      <div className="rounded-xl border bg-card shadow-sm p-8 text-center text-muted-foreground text-sm">
+        Complete cropping first.
+      </div>
     );
   }
 
   return (
-    <Card className="border-primary/20">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Sun className="w-5 h-5 text-primary" />
-          Lighting Enhancement
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="flex justify-center">
+    <div className="space-y-5">
+      <div className="text-center space-y-1">
+        <h2 className="text-lg font-bold text-foreground">Lighting Enhancement</h2>
+        <p className="text-xs text-muted-foreground">Adjust brightness and contrast for passport standards</p>
+      </div>
+
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="bg-muted/30 flex justify-center p-6">
           <img
             src={croppedImage}
             alt="Enhanced preview"
             style={{ filter: previewFilter }}
-            className="max-h-72 rounded-lg border shadow-sm object-contain"
+            className="max-h-64 rounded-lg shadow-sm object-contain"
           />
         </div>
-
-        <div className="flex justify-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            onClick={autoEnhance}
-            disabled={isAutoEnhancing}
-            className="gap-2"
-          >
-            <Wand2 className="w-4 h-4" />
-            {isAutoEnhancing ? "Analysing…" : "Auto Correct Lighting"}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={reduceShadows}
-            className="gap-2"
-          >
-            <SunMedium className="w-4 h-4" />
-            Soften Shadows
-          </Button>
-        </div>
-
-        <div className="text-center">
-          <button
-            type="button"
-            className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
-            onClick={() => setAdvancedEnhanceVisible(!advancedEnhanceVisible)}
-          >
-            {advancedEnhanceVisible ? "Hide advanced settings" : "Show advanced settings"}
-          </button>
-        </div>
-
-        {advancedEnhanceVisible && (
-          <div className="space-y-4 max-w-md mx-auto">
-            <SliderControl
-              label="Brightness"
-              value={brightness}
-              onValueChange={([v]) => setBrightness(v)}
-              min={0.5} max={2} step={0.05}
-            />
-            <SliderControl
-              label="Contrast"
-              value={contrast}
-              onValueChange={([v]) => setContrast(v)}
-              min={0.5} max={2} step={0.05}
-            />
-            <SliderControl
-              label="Saturation"
-              value={saturation}
-              onValueChange={([v]) => setSaturation(v)}
-              min={0} max={2} step={0.05}
-            />
-            <SliderControl
-              label="Sharpness"
-              value={sharpness}
-              onValueChange={([v]) => setSharpness(v)}
-              min={0.5} max={3} step={0.05}
-            />
-          </div>
-        )}
-
-        <div className="flex justify-center gap-3 flex-wrap">
-          <Button variant="outline" onClick={() => setCurrentStep(3)} className="gap-2">
-            <ArrowLeft className="w-4 h-4" /> Back
-          </Button>
-          <Button variant="outline" onClick={resetDefaults} className="gap-2">
-            <RotateCcw className="w-4 h-4" /> Reset
-          </Button>
-          <Button onClick={saveAndContinue}>
-            Continue to Compliance →
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function SliderControl({
-  label,
-  value,
-  onValueChange,
-  min,
-  max,
-  step,
-}: {
-  label: string;
-  value: number;
-  onValueChange: (v: number[]) => void;
-  min: number;
-  max: number;
-  step: number;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex justify-between text-sm">
-        <span className="font-medium">{label}</span>
-        <span className="text-muted-foreground">{value.toFixed(2)}</span>
       </div>
-      <div style={{ touchAction: "none" }}>
-        <Slider
-          value={[value]}
-          onValueChange={onValueChange}
-          min={min}
-          max={max}
-          step={step}
-        />
+
+      <div className="flex justify-center gap-2.5 flex-wrap">
+        <Button
+          variant="outline"
+          onClick={autoEnhance}
+          disabled={isAutoEnhancing}
+          className="gap-2"
+        >
+          <Wand2 className="w-4 h-4" />
+          {isAutoEnhancing ? "Analysing..." : "Auto Correct"}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={reduceShadows}
+          className="gap-2"
+        >
+          <SunMedium className="w-4 h-4" />
+          Soften Shadows
+        </Button>
+        <Button
+          variant="outline"
+          onClick={resetDefaults}
+          className="gap-2"
+        >
+          <RotateCcw className="w-4 h-4" /> Reset
+        </Button>
+      </div>
+
+      <button
+        type="button"
+        className="w-full flex items-center justify-between text-xs font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg border px-4 py-2.5"
+        onClick={() => setAdvancedEnhanceVisible(!advancedEnhanceVisible)}
+      >
+        <span>Manual adjustment sliders</span>
+        {advancedEnhanceVisible ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+      </button>
+
+      {advancedEnhanceVisible && (
+        <div className="space-y-4 rounded-lg border bg-card p-4">
+          <SliderControl
+            label="Brightness"
+            value={brightness}
+            onValueChange={([v]) => setBrightness(v)}
+            min={0.5} max={2} step={0.05}
+          />
+          <SliderControl
+            label="Contrast"
+            value={contrast}
+            onValueChange={([v]) => setContrast(v)}
+            min={0.5} max={2} step={0.05}
+          />
+          <SliderControl
+            label="Saturation"
+            value={saturation}
+            onValueChange={([v]) => setSaturation(v)}
+            min={0} max={2} step={0.05}
+          />
+          <SliderControl
+            label="Sharpness"
+            value={sharpness}
+            onValueChange={([v]) => setSharpness(v)}
+            min={0.5} max={3} step={0.05}
+          />
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row justify-center gap-2.5">
+        <Button variant="outline" onClick={() => setCurrentStep(3)} className="gap-2">
+          <ArrowLeft className="w-4 h-4" /> Back
+        </Button>
+        <Button onClick={saveAndContinue} className="gap-1">
+          Continue <span className="hidden sm:inline">to Compliance</span> &rarr;
+        </Button>
       </div>
     </div>
   );

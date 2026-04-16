@@ -1,19 +1,18 @@
 import { useCallback, useState, useRef, useEffect } from "react";
 import { usePhoto } from "@/context/PhotoContext";
 import { assessSuitability } from "@/lib/suitability";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Image as ImageIcon, Camera, X, Circle, ChevronDown, ChevronUp, SwitchCamera, SkipForward } from "lucide-react";
+import { Upload, Camera, X, Circle, ChevronDown, ChevronUp, SwitchCamera, SkipForward, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 
 const PHOTO_TIPS = [
-  { icon: "🔆", text: "Even, shadow-free lighting from the front" },
+  { icon: "💡", text: "Even, shadow-free lighting from the front" },
   { icon: "📷", text: "Face directly forward, looking straight at the camera" },
-  { icon: "⚪", text: "Plain background — the app will remove it automatically" },
+  { icon: "⬜", text: "Plain background -- the app will remove it automatically" },
   { icon: "😐", text: "Neutral expression, mouth closed" },
   { icon: "🚫", text: "No glasses, hats, or headwear (religious exceptions apply)" },
-  { icon: "📅", text: "Taken within the last 6 months (12 months for under 18)" },
-  { icon: "📐", text: "High resolution — at least 800 × 1000 px recommended" },
+  { icon: "📅", text: "Taken within the last 6 months" },
+  { icon: "📐", text: "High resolution -- at least 800 x 1000 px recommended" },
 ];
 
 export default function StepUpload() {
@@ -33,7 +32,7 @@ export default function StepUpload() {
     const result = await assessSuitability(dataUrl);
     setSuitability(result);
     if (!result.ok) {
-      toast.warning("This photo may have issues — see notes below.");
+      toast.warning("This photo may have issues -- see notes below.");
     }
   }, [setSuitability]);
 
@@ -84,7 +83,7 @@ export default function StepUpload() {
       const isHeic = ["image/heic", "image/heif"].includes(file.type);
       toast.error(
         isHeic
-          ? "HEIC not supported in this browser. On iPhone: open in Photos → Share → Save to Files as JPEG, then upload."
+          ? "HEIC not supported in this browser. On iPhone: open in Photos > Share > Save to Files as JPEG, then upload."
           : "Could not read this image. Please try JPG or PNG format."
       );
     };
@@ -116,7 +115,6 @@ export default function StepUpload() {
       setCameraError("Camera not supported in this browser. Please upload a file instead.");
       return;
     }
-    // Stop existing stream before starting new one
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     try {
@@ -178,182 +176,212 @@ export default function StepUpload() {
     }, "image/jpeg", 0.95);
   }, [processFile, stopCamera]);
 
-  return (
-    <Card className="border-primary/20">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ImageIcon className="w-5 h-5 text-primary" />
-          Upload Your Photo
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {cameraActive ? (
-          <div className="space-y-3">
-            <div className="relative rounded-lg overflow-hidden bg-black aspect-[4/3]">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div
-                  className="border-2 border-white/70"
-                  style={{
-                    width: "42%",
-                    paddingBottom: "56%",
-                    borderRadius: "50% 50% 46% 46% / 40% 40% 60% 60%",
-                    position: "absolute",
-                    top: "8%",
-                  }}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={switchCamera}
-                className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
-                title="Switch camera"
-              >
-                <SwitchCamera className="w-5 h-5" />
-              </button>
-              <div className="absolute bottom-2 left-2 right-2 flex justify-center">
-                <span className={`text-xs px-2 py-1 rounded font-medium ${facingMode === "environment" ? "bg-emerald-600/80 text-white" : "bg-amber-600/80 text-white"}`}>
-                  {facingMode === "environment" ? "Rear camera (recommended)" : "Front camera — not recommended for passports"}
-                </span>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground text-center">
-              Centre your face inside the oval. Look straight ahead with a neutral expression.
-            </p>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={stopCamera} className="flex-1 gap-2">
-                <X className="w-4 h-4" /> Cancel
-              </Button>
-              <Button onClick={capturePhoto} className="flex-1 gap-2">
-                <Circle className="w-4 h-4 fill-current" /> Capture Photo
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <>
+  if (cameraActive) {
+    return (
+      <div className="space-y-4">
+        <div className="relative rounded-xl overflow-hidden bg-black aspect-[4/3] shadow-lg">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
-                dragOver ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-primary/50"
-              }`}
-              onClick={() => document.getElementById("file-input")?.click()}
-            >
-              <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground mb-2">
-                Drag & drop your photo here, or click to browse
-              </p>
-              <p className="text-xs text-muted-foreground">JPG, PNG, WebP or HEIC</p>
-              <input
-                id="file-input"
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </div>
+              className="border-2 border-white/60"
+              style={{
+                width: "42%",
+                paddingBottom: "56%",
+                borderRadius: "50% 50% 46% 46% / 40% 40% 60% 60%",
+                position: "absolute",
+                top: "8%",
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={switchCamera}
+            className="absolute top-3 right-3 bg-black/50 hover:bg-black/70 text-white rounded-full p-2.5 transition-colors"
+            title="Switch camera"
+          >
+            <SwitchCamera className="w-5 h-5" />
+          </button>
+          <div className="absolute bottom-3 left-3 right-3 flex justify-center">
+            <span className={`text-xs px-3 py-1 rounded-full font-medium backdrop-blur-sm ${
+              facingMode === "environment"
+                ? "bg-success/80 text-white"
+                : "bg-warning/80 text-white"
+            }`}>
+              {facingMode === "environment" ? "Rear camera (recommended)" : "Front camera -- not ideal for passports"}
+            </span>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground text-center">
+          Centre your face inside the oval. Look straight ahead with a neutral expression.
+        </p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={stopCamera} className="flex-1 gap-2">
+            <X className="w-4 h-4" /> Cancel
+          </Button>
+          <Button onClick={capturePhoto} className="flex-1 gap-2">
+            <Circle className="w-4 h-4 fill-current" /> Capture Photo
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
-            <div className="flex items-center gap-3">
-              <div className="flex-1 border-t border-muted-foreground/20" />
-              <span className="text-xs text-muted-foreground">or</span>
-              <div className="flex-1 border-t border-muted-foreground/20" />
-            </div>
-
-            <Button variant="outline" className="w-full gap-2" onClick={() => startCamera("environment")}>
-              <Camera className="w-4 h-4" />
-              Take Photo with Camera
-            </Button>
-
-            {cameraError && (
-              <p className="text-xs text-destructive text-center">{cameraError}</p>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setShowTips((v) => !v)}
-              className="w-full flex items-center justify-between text-xs font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg border px-3 py-2"
-            >
-              <span>Tips for the best passport photo</span>
-              {showTips ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
-            {showTips && (
-              <ul className="space-y-1.5 text-xs text-muted-foreground rounded-lg border bg-muted/30 px-3 py-3">
-                {PHOTO_TIPS.map((t) => (
-                  <li key={t.text} className="flex gap-2">
-                    <span className="flex-shrink-0">{t.icon}</span>
-                    <span>{t.text}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        )}
-
-        {preview && !cameraActive && (
-          <div className="space-y-3">
-            <div className="flex justify-center">
-              <img
-                src={preview}
-                alt="Uploaded preview"
-                className="max-h-64 rounded-lg border shadow-sm object-contain"
-              />
-            </div>
-            {fileInfo && (
+  if (preview) {
+    return (
+      <div className="space-y-5">
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <div className="bg-muted/30 flex justify-center p-6">
+            <img
+              src={preview}
+              alt="Uploaded preview"
+              className="max-h-72 rounded-lg shadow-sm object-contain"
+            />
+          </div>
+          {fileInfo && (
+            <div className="px-4 py-2.5 border-t bg-card">
               <p className="text-sm text-muted-foreground text-center">
-                {fileInfo.name} · {fileInfo.size}
+                {fileInfo.name} <span className="text-muted-foreground/50 mx-1">--</span> {fileInfo.size}
               </p>
-            )}
+            </div>
+          )}
+        </div>
 
-            {suitability && (
-              <div
-                className={`rounded-md border p-3 text-sm ${
-                  suitability.ok
-                    ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-700"
-                    : "border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700"
-                }`}
-              >
-                <p className={`font-medium text-sm ${suitability.ok ? "text-emerald-800 dark:text-emerald-300" : "text-amber-800 dark:text-amber-300"}`}>
-                  {suitability.ok ? "Photo looks broadly suitable" : "Potential issues detected"}
-                </p>
-                {!suitability.ok && (
-                  <ul className="mt-1.5 list-disc pl-4 space-y-0.5">
-                    {suitability.reasons.map((r) => (
-                      <li key={r} className="text-xs text-amber-700 dark:text-amber-400">{r}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-
-            <div className="flex justify-center gap-3 flex-wrap">
-              <Button
-                variant="outline"
-                onClick={() => { setPreview(null); setFileInfo(null); setSuitability(null); }}
-              >
-                Choose Different Photo
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => preview && skipToCrop(preview)}
-                className="gap-2"
-                title="Skip background removal and go straight to crop"
-              >
-                <SkipForward className="w-4 h-4" /> Skip BG Removal
-              </Button>
-              <Button onClick={() => setCurrentStep(2)}>
-                Continue to Background Removal →
-              </Button>
+        {suitability && (
+          <div
+            className={`rounded-lg border p-4 flex items-start gap-3 ${
+              suitability.ok
+                ? "border-success/30 bg-success/5"
+                : "border-warning/30 bg-warning/5"
+            }`}
+          >
+            {suitability.ok
+              ? <CheckCircle className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
+              : <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+            }
+            <div className="flex-1 min-w-0">
+              <p className={`font-medium text-sm ${suitability.ok ? "text-success" : "text-warning"}`}>
+                {suitability.ok ? "Photo looks suitable for processing" : "Potential issues detected"}
+              </p>
+              {!suitability.ok && (
+                <ul className="mt-1.5 space-y-0.5">
+                  {suitability.reasons.map((r) => (
+                    <li key={r} className="text-xs text-muted-foreground">{r}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+
+        <div className="flex flex-col sm:flex-row justify-center gap-2.5">
+          <Button
+            variant="outline"
+            onClick={() => { setPreview(null); setFileInfo(null); setSuitability(null); }}
+          >
+            Choose Different Photo
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => preview && skipToCrop(preview)}
+            className="gap-2"
+          >
+            <SkipForward className="w-4 h-4" /> Skip BG Removal
+          </Button>
+          <Button onClick={() => setCurrentStep(2)} className="gap-1">
+            Continue <span className="hidden sm:inline">to Background Removal</span> &rarr;
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="text-center space-y-1.5 pt-2">
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">
+          Upload your passport photo
+        </h2>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+          We'll remove the background, crop to Australian standards, and prepare it for printing.
+        </p>
+      </div>
+
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+        className={`
+          relative border-2 border-dashed rounded-xl p-10 text-center transition-all cursor-pointer
+          hover:border-primary/40 hover:bg-primary/[0.02]
+          ${dragOver
+            ? "border-primary bg-primary/5 scale-[1.01]"
+            : "border-muted-foreground/25"
+          }
+        `}
+        onClick={() => document.getElementById("file-input")?.click()}
+      >
+        <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+          <ImagePlus className="w-6 h-6 text-primary" />
+        </div>
+        <p className="text-sm font-medium text-foreground mb-1">
+          Drag and drop your photo here
+        </p>
+        <p className="text-xs text-muted-foreground mb-4">
+          or click to browse your files
+        </p>
+        <div className="flex justify-center">
+          <span className="text-[11px] text-muted-foreground/60 bg-muted/50 px-3 py-1 rounded-full">
+            JPG, PNG, WebP or HEIC
+          </span>
+        </div>
+        <input
+          id="file-input"
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+      </div>
+
+      <div className="flex items-center gap-3 px-4">
+        <div className="flex-1 border-t border-border" />
+        <span className="text-xs text-muted-foreground font-medium">or</span>
+        <div className="flex-1 border-t border-border" />
+      </div>
+
+      <Button variant="outline" className="w-full gap-2 h-11" onClick={() => startCamera("environment")}>
+        <Camera className="w-4 h-4" />
+        Take Photo with Camera
+      </Button>
+
+      {cameraError && (
+        <p className="text-xs text-destructive text-center">{cameraError}</p>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setShowTips((v) => !v)}
+        className="w-full flex items-center justify-between text-xs font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg border px-4 py-2.5"
+      >
+        <span>Tips for the best passport photo</span>
+        {showTips ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+      </button>
+      {showTips && (
+        <ul className="space-y-2 text-xs text-muted-foreground rounded-lg border bg-muted/30 px-4 py-3.5">
+          {PHOTO_TIPS.map((t) => (
+            <li key={t.text} className="flex gap-2.5 items-start">
+              <span className="flex-shrink-0 mt-0.5">{t.icon}</span>
+              <span>{t.text}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

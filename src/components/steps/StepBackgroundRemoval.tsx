@@ -1,8 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { usePhoto } from "@/context/PhotoContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader as Loader2, Layers, ArrowLeft, RotateCcw, SkipForward } from "lucide-react";
+import { Loader as Loader2, ArrowLeft, RotateCcw, SkipForward } from "lucide-react";
 import { toast } from "sonner";
 import { removeBackground } from "@imgly/background-removal";
 
@@ -20,18 +19,18 @@ export default function StepBackgroundRemoval() {
     if (!originalImage) return;
     setLoading(true);
     setHasError(false);
-    setProgress("Loading AI model…");
+    setProgress("Loading AI model...");
     setEta(null);
     const t0 = Date.now();
     try {
-      setProgress("Removing background…");
+      setProgress("Removing background...");
       const resultBlob = await removeBackground(originalImage, {
         progress: (key: string, current: number, total: number) => {
           const steps: Record<string, string> = {
-            "compute:decode": "Decoding image…",
-            "compute:inference": "Running AI model…",
-            "compute:mask": "Applying mask…",
-            "compute:encode": "Encoding result…",
+            "compute:decode": "Decoding image...",
+            "compute:inference": "Running AI model...",
+            "compute:mask": "Applying mask...",
+            "compute:encode": "Encoding result...",
           };
           if (steps[key]) {
             const pct = total > 0 ? Math.round((current / total) * 100) : 0;
@@ -70,21 +69,19 @@ export default function StepBackgroundRemoval() {
       toast.success("Background removed successfully!");
     } catch {
       setHasError(true);
-      toast.error("Background removal failed. Please try again or use Skip if your photo already has a white background.");
+      toast.error("Background removal failed. Please try again or skip if your photo already has a white background.");
     } finally {
       setLoading(false);
       setProgress("");
     }
   }, [originalImage, setBgRemovedImage]);
 
-  // Auto-run on first arrival
   useEffect(() => {
     if (originalImage && !bgRemovedImage) {
       removeBg();
     }
   }, [originalImage, bgRemovedImage, removeBg]);
 
-  // Skip background removal — treats original image as-is on white canvas
   const skipRemoval = useCallback(() => {
     if (!originalImage) return;
     const img = new Image();
@@ -102,141 +99,143 @@ export default function StepBackgroundRemoval() {
     img.src = originalImage;
   }, [originalImage, setBgRemovedImage]);
 
-  const handleMouseMove = useCallback((e: MouseEvent | TouchEvent) => {
+  const handlePointerMove = useCallback((e: PointerEvent) => {
     if (!dragging.current || !sliderRef.current) return;
     const rect = sliderRef.current.getBoundingClientRect();
-    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    const pos = ((clientX - rect.left) / rect.width) * 100;
-    setSliderPos(Math.max(0, Math.min(100, pos)));
+    const pos = ((e.clientX - rect.left) / rect.width) * 100;
+    setSliderPos(Math.max(2, Math.min(98, pos)));
   }, []);
 
   useEffect(() => {
     const handleUp = () => { dragging.current = false; };
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleUp);
-    window.addEventListener("touchmove", handleMouseMove);
-    window.addEventListener("touchend", handleUp);
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handleUp);
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleUp);
-      window.removeEventListener("touchmove", handleMouseMove);
-      window.removeEventListener("touchend", handleUp);
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handleUp);
     };
-  }, [handleMouseMove]);
+  }, [handlePointerMove]);
+
+  if (!originalImage) {
+    return (
+      <div className="rounded-xl border bg-card shadow-sm p-8 text-center">
+        <p className="text-sm text-muted-foreground mb-3">Upload a photo first.</p>
+        <Button variant="outline" onClick={() => setCurrentStep(1)} className="gap-2">
+          <ArrowLeft className="w-4 h-4" /> Go to Upload
+        </Button>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border bg-card shadow-sm">
+        <div className="flex flex-col items-center gap-5 py-14 px-6">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+            <Loader2 className="w-7 h-7 animate-spin text-primary" />
+          </div>
+          <div className="text-center space-y-1.5">
+            <p className="text-sm font-medium">{progress || "Removing background..."}</p>
+            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+              This may take a few seconds on first run while the AI model loads.
+            </p>
+            {eta && (
+              <p className="text-xs font-medium text-foreground">{eta}</p>
+            )}
+          </div>
+          <Button size="sm" variant="outline" onClick={skipRemoval} className="gap-2 mt-1">
+            <SkipForward className="w-3.5 h-3.5" /> Skip -- my background is already white
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <div className="rounded-xl border bg-card shadow-sm p-6">
+        <div className="rounded-lg bg-destructive/10 p-5 text-center space-y-3">
+          <p className="font-medium text-sm text-destructive">Background removal failed</p>
+          <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+            This can happen with large images or slow connections. Try again, or skip if your photo already has a plain white background.
+          </p>
+          <div className="flex justify-center gap-2 flex-wrap">
+            <Button size="sm" onClick={removeBg} className="gap-2">
+              <RotateCcw className="w-3.5 h-3.5" /> Try Again
+            </Button>
+            <Button size="sm" variant="outline" onClick={skipRemoval} className="gap-2">
+              <SkipForward className="w-3.5 h-3.5" /> Skip (white bg)
+            </Button>
+          </div>
+        </div>
+        <div className="flex justify-center mt-4">
+          <Button variant="outline" onClick={() => setCurrentStep(1)} className="gap-2">
+            <ArrowLeft className="w-4 h-4" /> Back to Upload
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!bgRemovedImage) return null;
 
   return (
-    <Card className="border-primary/20">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Layers className="w-5 h-5 text-primary" />
-          Background Removal
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {loading ? (
-          <div className="flex flex-col items-center gap-4 py-10">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <div className="text-center space-y-1">
-              <p className="text-sm font-medium">{progress || "Removing background…"}</p>
-              <p className="text-xs text-muted-foreground">
-                This may take a few seconds on first run while the AI model loads.
-                {eta && <span className="block mt-1 font-medium text-foreground">{eta}</span>}
-              </p>
-            </div>
-            <Button size="sm" variant="outline" onClick={skipRemoval} className="gap-2 mt-2">
-              <SkipForward className="w-3.5 h-3.5" /> Skip — my background is already white/grey
-            </Button>
-          </div>
-        ) : hasError ? (
-          <div className="space-y-4">
-            <div className="rounded-lg bg-destructive/10 text-destructive text-sm p-4 text-center space-y-3">
-              <p className="font-medium">Background removal failed</p>
-              <p className="text-xs opacity-80">
-                This can happen with large images or slow connections. Try again, or skip if your photo already has a plain white background.
-              </p>
-              <div className="flex justify-center gap-2 flex-wrap">
-                <Button size="sm" onClick={removeBg} className="gap-2">
-                  <RotateCcw className="w-3.5 h-3.5" /> Try Again
-                </Button>
-                <Button size="sm" variant="outline" onClick={skipRemoval} className="gap-2">
-                  <SkipForward className="w-3.5 h-3.5" /> Skip (white bg)
-                </Button>
-              </div>
-            </div>
-            <div className="flex justify-center">
-              <Button variant="outline" onClick={() => setCurrentStep(1)} className="gap-2">
-                <ArrowLeft className="w-4 h-4" /> Back to Upload
-              </Button>
-            </div>
-          </div>
-        ) : originalImage && bgRemovedImage ? (
-          <div className="space-y-4">
-            {/* Before / After slider */}
-            <div
-              ref={sliderRef}
-              className="relative w-full max-w-md mx-auto aspect-[7/9] overflow-hidden rounded-lg border shadow-sm cursor-ew-resize select-none"
-              onMouseDown={() => { dragging.current = true; }}
-              onTouchStart={() => { dragging.current = true; }}
-            >
-              <img src={bgRemovedImage} alt="After" className="absolute inset-0 w-full h-full object-cover" />
-              <div className="absolute inset-0 overflow-hidden" style={{ width: `${sliderPos}%` }}>
-                <img
-                  src={originalImage}
-                  alt="Before"
-                  className="w-full h-full object-cover"
-                  style={{ width: `${100 / (sliderPos / 100)}%`, maxWidth: "none" }}
-                />
-              </div>
-              <div
-                className="absolute top-0 bottom-0 w-0.5 bg-primary shadow-lg"
-                style={{ left: `${sliderPos}%` }}
-              >
-                <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shadow-lg">
-                  ⟺
-                </div>
-              </div>
-              <div className="absolute top-2 left-2 text-xs font-semibold bg-foreground/70 text-background px-2 py-0.5 rounded">Before</div>
-              <div className="absolute top-2 right-2 text-xs font-semibold bg-foreground/70 text-background px-2 py-0.5 rounded">After</div>
-            </div>
+    <div className="space-y-5">
+      <div className="text-center space-y-1">
+        <h2 className="text-lg font-bold text-foreground">Background Removed</h2>
+        <p className="text-xs text-muted-foreground">Drag the slider to compare before and after</p>
+      </div>
 
-            <p className="text-xs text-center text-muted-foreground">
-              Drag the slider to compare. If the result looks good, continue.
-            </p>
+      <div
+        ref={sliderRef}
+        className="relative w-full max-w-sm mx-auto aspect-[7/9] overflow-hidden rounded-xl border shadow-sm cursor-ew-resize select-none touch-none"
+        onPointerDown={() => { dragging.current = true; }}
+      >
+        <img src={bgRemovedImage} alt="After" className="absolute inset-0 w-full h-full object-cover" />
+        <div className="absolute inset-0 overflow-hidden" style={{ width: `${sliderPos}%` }}>
+          <img
+            src={originalImage}
+            alt="Before"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        </div>
+        <div
+          className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_6px_rgba(0,0,0,0.3)]"
+          style={{ left: `${sliderPos}%` }}
+        >
+          <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M4.5 3L1.5 7L4.5 11" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M9.5 3L12.5 7L9.5 11" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+        </div>
+        <span className="absolute top-2.5 left-2.5 text-[10px] font-semibold bg-black/50 text-white px-2 py-0.5 rounded-full backdrop-blur-sm">Before</span>
+        <span className="absolute top-2.5 right-2.5 text-[10px] font-semibold bg-black/50 text-white px-2 py-0.5 rounded-full backdrop-blur-sm">After</span>
+      </div>
 
-            <div className="flex justify-center gap-3 flex-wrap">
-              <Button variant="outline" onClick={() => setCurrentStep(1)} className="gap-2">
-                <ArrowLeft className="w-4 h-4" /> Back
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => { setBgRemovedImage(null); removeBg(); }}
-                className="gap-2"
-                title="Re-run background removal on the same photo"
-              >
-                <RotateCcw className="w-4 h-4" /> Remove Again
-              </Button>
-              <Button
-                variant="outline"
-                onClick={skipRemoval}
-                className="gap-2"
-                title="Skip background removal and use original photo"
-              >
-                <SkipForward className="w-4 h-4" /> Skip
-              </Button>
-              <Button onClick={() => setCurrentStep(3)}>
-                Continue to Crop →
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3 py-8 text-center">
-            <p className="text-sm text-muted-foreground">Upload a photo first.</p>
-            <Button variant="outline" onClick={() => setCurrentStep(1)} className="gap-2">
-              <ArrowLeft className="w-4 h-4" /> Go to Upload
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      <div className="flex flex-col sm:flex-row justify-center gap-2.5">
+        <Button variant="outline" onClick={() => setCurrentStep(1)} className="gap-2">
+          <ArrowLeft className="w-4 h-4" /> Back
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => { setBgRemovedImage(null); removeBg(); }}
+          className="gap-2"
+        >
+          <RotateCcw className="w-4 h-4" /> Redo
+        </Button>
+        <Button
+          variant="outline"
+          onClick={skipRemoval}
+          className="gap-2"
+        >
+          <SkipForward className="w-4 h-4" /> Skip
+        </Button>
+        <Button onClick={() => setCurrentStep(3)} className="gap-1">
+          Continue <span className="hidden sm:inline">to Crop</span> &rarr;
+        </Button>
+      </div>
+    </div>
   );
 }

@@ -1,14 +1,13 @@
 import { useEffect, useCallback } from "react";
 import { usePhoto } from "@/context/PhotoContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CircleCheck as CheckCircle2, TriangleAlert as AlertTriangle, ClipboardCheck, ArrowLeft, Info, Bot } from "lucide-react";
+import { CircleCheck as CheckCircle2, TriangleAlert as AlertTriangle, ArrowLeft, Info, Bot, Loader as Loader2 } from "lucide-react";
 
 const manualChecks = [
   {
     label: "Eyes open, clearly visible and looking directly at camera",
-    tip: "Eyes should be clearly visible — no squinting or looking away",
+    tip: "Eyes should be clearly visible -- no squinting or looking away",
   },
   {
     label: "Neutral expression with mouth closed",
@@ -23,7 +22,7 @@ const manualChecks = [
     tip: "Hair accessories that don't obscure the face are acceptable",
   },
   {
-    label: "Head straight and facing directly forward — not tilted or turned",
+    label: "Head straight and facing directly forward -- not tilted or turned",
     tip: "Shoulders should be level and face centred in frame",
   },
   {
@@ -58,7 +57,6 @@ export default function StepCompliance() {
         ctx.getImageData(img.width - margin - patchSize, img.height - margin - patchSize, patchSize, patchSize),
       ];
 
-      // Relaxed: accept white or light grey (neutral) background
       const whiteBackground = corners.every((corner) => {
         let lightCount = 0;
         const totalCount = corner.data.length / 4;
@@ -100,14 +98,21 @@ export default function StepCompliance() {
     if (!enhancedImage || aiCheck.status === "running") return;
     setAiCheck({ status: "running", reasons: [], checks: [] });
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://linepazjdxcvpwkxmrna.supabase.co";
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const aiCheckUrl = import.meta.env.VITE_AI_CHECK_URL || `${supabaseUrl}/functions/v1/passport-ai-check`;
+
+      if (!supabaseUrl || !anonKey) {
+        setAiCheck({ status: "error", reasons: ["Configuration missing. AI check unavailable."], checks: [] });
+        return;
+      }
+
       const res = await fetch(aiCheckUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxpbmVwYXpqZHhjdnB3a3htcm5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNzExODcsImV4cCI6MjA5MTg0NzE4N30.GZj4EsZV2bWxKx3mKmTf1iMZTzSUE5BW7oFMDeT-abE"}`,
-          "Apikey": import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxpbmVwYXpqZHhjdnB3a3htcm5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNzExODcsImV4cCI6MjA5MTg0NzE4N30.GZj4EsZV2bWxKx3mKmTf1iMZTzSUE5BW7oFMDeT-abE",
+          "Authorization": `Bearer ${anonKey}`,
+          "Apikey": anonKey,
         },
         body: JSON.stringify({ image: enhancedImage, country: "AU" }),
       });
@@ -125,7 +130,7 @@ export default function StepCompliance() {
       console.error("AI check fetch error:", err);
       setAiCheck({
         status: "error",
-        reasons: [String(err)],
+        reasons: ["Could not contact AI checker. Try again later."],
         checks: [],
       });
     }
@@ -141,35 +146,35 @@ export default function StepCompliance() {
   }[] = [
     {
       label: "White or light grey background",
-      detail: "Corner patches must be ≥75% light pixels (>165/255) — white or neutral grey accepted",
+      detail: "Corner patches must be 75%+ light pixels",
       pass: complianceResults.whiteBackground,
-      fix: "Re-run background removal or adjust lighting in the Enhance step.",
+      fix: "Re-run background removal or adjust lighting.",
       fixStep: 2,
-      fixLabel: "Go to Background Removal",
+      fixLabel: "Background",
     },
     {
-      label: "Correct aspect ratio (35×45 mm / 7:9)",
-      detail: "Width-to-height ratio must be within ±2% of 7∶9",
+      label: "Correct aspect ratio (35x45 mm / 7:9)",
+      detail: "Width-to-height ratio within 2% of 7:9",
       pass: complianceResults.correctAspectRatio,
-      fix: "Re-crop the photo to restore the correct 7:9 ratio.",
+      fix: "Re-crop the photo to restore the correct ratio.",
       fixStep: 3,
-      fixLabel: "Go to Crop & Resize",
+      fixLabel: "Crop",
     },
     {
-      label: "Sufficient resolution (≥ 600 DPI)",
-      detail: "Minimum 827 × 1063 px for 35×45 mm at 600 DPI",
+      label: "Sufficient resolution (600 DPI)",
+      detail: "Minimum 827 x 1063 px",
       pass: complianceResults.sufficientResolution,
-      fix: "Upload a higher-resolution source photo (at least 800 × 1000 px).",
+      fix: "Upload a higher-resolution source photo.",
       fixStep: 1,
-      fixLabel: "Go to Upload",
+      fixLabel: "Upload",
     },
     {
       label: "Colour photo",
-      detail: "RGB colour variance detected in face region",
+      detail: "RGB colour variance detected",
       pass: complianceResults.colourPhoto,
-      fix: "Ensure your source photo is in colour — check the Saturation slider in the Enhance step.",
+      fix: "Ensure source photo is in colour.",
       fixStep: 4,
-      fixLabel: "Go to Enhance",
+      fixLabel: "Enhance",
     },
   ];
 
@@ -177,45 +182,42 @@ export default function StepCompliance() {
 
   if (!enhancedImage) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center text-muted-foreground text-sm">
-          Complete enhancement first.
-        </CardContent>
-      </Card>
+      <div className="rounded-xl border bg-card shadow-sm p-8 text-center text-muted-foreground text-sm">
+        Complete enhancement first.
+      </div>
     );
   }
 
   return (
-    <Card className="border-primary/20">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ClipboardCheck className="w-5 h-5 text-primary" />
-          Compliance Checklist
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <div className="flex gap-4 items-start">
-          <img
-            src={enhancedImage}
-            alt="Final photo being checked"
-            className="w-20 rounded border shadow-sm flex-shrink-0 object-contain"
-          />
-          <div className={`flex-1 rounded-lg p-3 text-sm font-medium flex items-center gap-2 ${
-            allAutoPass ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
-          }`}>
-            {allAutoPass
-              ? <><CheckCircle2 className="w-5 h-5 flex-shrink-0" /> All automated checks passed — ready to print</>
-              : <><AlertTriangle className="w-5 h-5 flex-shrink-0" /> One or more automated checks failed — see details below</>
-            }
-          </div>
-        </div>
+    <div className="space-y-5">
+      <div className="text-center space-y-1">
+        <h2 className="text-lg font-bold text-foreground">Compliance Checklist</h2>
+        <p className="text-xs text-muted-foreground">Verifying your photo meets Australian passport standards</p>
+      </div>
 
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Automated Checks (applied to final adjusted photo)
-          </p>
+      <div className="flex gap-4 items-start">
+        <img
+          src={enhancedImage}
+          alt="Final photo"
+          className="w-20 rounded-lg border shadow-sm flex-shrink-0 object-contain"
+        />
+        <div className={`flex-1 rounded-lg p-3 text-sm font-medium flex items-center gap-2.5 ${
+          allAutoPass ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+        }`}>
+          {allAutoPass
+            ? <><CheckCircle2 className="w-5 h-5 flex-shrink-0" /> All automated checks passed</>
+            : <><AlertTriangle className="w-5 h-5 flex-shrink-0" /> Some checks need attention</>
+          }
+        </div>
+      </div>
+
+      <section className="space-y-2">
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+          Automated Checks
+        </p>
+        <div className="rounded-xl border divide-y overflow-hidden">
           {autoChecks.map((c) => (
-            <div key={c.label} className="rounded-lg border px-3 py-2 space-y-1">
+            <div key={c.label} className="px-3.5 py-2.5 space-y-1.5 bg-card">
               <div className="flex items-center gap-2 text-sm">
                 {c.pass
                   ? <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
@@ -224,24 +226,24 @@ export default function StepCompliance() {
                 <span className="flex-1 font-medium">{c.label}</span>
                 <Badge
                   variant={c.pass ? "default" : "destructive"}
-                  className={`ml-auto text-xs ${c.pass ? "bg-success text-success-foreground" : ""}`}
+                  className={`text-[10px] px-1.5 ${c.pass ? "bg-success text-success-foreground" : ""}`}
                 >
                   {c.pass ? "Pass" : "Fail"}
                 </Badge>
               </div>
               {!c.pass && (
-                <div className="pl-6 flex items-start gap-2">
+                <div className="pl-6 flex items-center gap-2">
                   <p className="text-xs text-muted-foreground flex-1">
-                    <span className="font-medium text-destructive">Fix: </span>{c.fix}
+                    <span className="text-destructive font-medium">Fix: </span>{c.fix}
                   </p>
                   {c.fixStep && (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-xs h-7 px-2 flex-shrink-0 whitespace-nowrap"
+                      className="text-[10px] h-6 px-2 flex-shrink-0"
                       onClick={() => setCurrentStep(c.fixStep!)}
                     >
-                      {c.fixLabel ?? "Go Fix"} →
+                      Go to {c.fixLabel}
                     </Button>
                   )}
                 </div>
@@ -249,60 +251,68 @@ export default function StepCompliance() {
             </div>
           ))}
         </div>
+      </section>
 
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            AI Check — Australian Passport Standards
-          </p>
-          <div className="rounded-lg border px-3 py-3 space-y-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={aiCheck.status === "running" || !enhancedImage}
-                className="gap-2"
-                onClick={runAiCheck}
-              >
-                <Bot className="w-4 h-4" />
-                {aiCheck.status === "running" ? "Analysing…" : aiCheck.status !== "idle" ? "Re-run AI Check" : "Run AI Passport Check"}
-              </Button>
-              {aiCheck.status === "pass" && (
-                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                  All checks passed — likely to meet Australian passport photo standards.
-                </span>
-              )}
-              {aiCheck.status === "fail" && (
-                <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">
-                  Some checks failed — review the report below.
-                </span>
-              )}
-              {aiCheck.status === "error" && (
-                <span className="text-xs text-destructive font-medium">
-                  {aiCheck.reasons[0] ?? "AI check unavailable."}
-                </span>
-              )}
-            </div>
-
-            {aiCheck.status === "idle" && (
-              <p className="text-xs text-muted-foreground">
-                Run an AI pixel analysis against Australian passport photo requirements. Checks aspect ratio, resolution, background, lighting, colour, and head position.
-              </p>
+      <section className="space-y-2">
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+          AI Analysis
+        </p>
+        <div className="rounded-xl border bg-card p-4 space-y-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={aiCheck.status === "running"}
+              className="gap-2"
+              onClick={runAiCheck}
+            >
+              {aiCheck.status === "running"
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Bot className="w-4 h-4" />
+              }
+              {aiCheck.status === "running"
+                ? "Analysing..."
+                : aiCheck.status !== "idle"
+                  ? "Re-run AI Check"
+                  : "Run AI Passport Check"
+              }
+            </Button>
+            {aiCheck.status === "pass" && (
+              <span className="text-xs text-success font-medium">All checks passed</span>
             )}
+            {aiCheck.status === "fail" && (
+              <span className="text-xs text-warning font-medium">Some checks failed -- review below</span>
+            )}
+            {aiCheck.status === "error" && (
+              <span className="text-xs text-destructive font-medium">
+                {aiCheck.reasons[0] ?? "AI check unavailable."}
+              </span>
+            )}
+          </div>
 
-            {(aiCheck.status === "pass" || aiCheck.status === "fail") && aiCheck.checks.length > 0 && (
-              <div className="space-y-1.5">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Full Report</p>
+          {aiCheck.status === "idle" && (
+            <p className="text-xs text-muted-foreground">
+              Run a pixel analysis against Australian passport photo requirements including aspect ratio, resolution, background, lighting, colour, and head position.
+            </p>
+          )}
+
+          {(aiCheck.status === "pass" || aiCheck.status === "fail") && aiCheck.checks.length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Full Report</p>
+              <div className="rounded-lg border divide-y overflow-hidden">
                 {aiCheck.checks.map((c) => (
-                  <div key={c.label} className="rounded-md border px-3 py-2 space-y-1">
+                  <div key={c.label} className="px-3 py-2 space-y-1 bg-card">
                     <div className="flex items-center gap-2 text-sm">
                       {c.pass
-                        ? <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
-                        : <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                        ? <CheckCircle2 className="w-3.5 h-3.5 text-success flex-shrink-0" />
+                        : <AlertTriangle className="w-3.5 h-3.5 text-warning flex-shrink-0" />
                       }
-                      <span className="flex-1 font-medium text-sm">{c.label}</span>
+                      <span className="flex-1 font-medium text-[13px]">{c.label}</span>
                       <Badge
                         variant={c.pass ? "default" : "outline"}
-                        className={`ml-auto text-xs ${c.pass ? "bg-success text-success-foreground" : "border-amber-500 text-amber-700 dark:text-amber-400"}`}
+                        className={`text-[10px] px-1.5 ${
+                          c.pass ? "bg-success text-success-foreground" : "border-warning text-warning"
+                        }`}
                       >
                         {c.pass ? "Pass" : "Fail"}
                       </Badge>
@@ -310,42 +320,44 @@ export default function StepCompliance() {
                     <p className="text-xs text-muted-foreground pl-6">{c.detail}</p>
                     {c.fix && (
                       <p className="text-xs pl-6">
-                        <span className="font-medium text-amber-700 dark:text-amber-400">Fix: </span>
+                        <span className="font-medium text-warning">Fix: </span>
                         <span className="text-muted-foreground">{c.fix}</span>
                       </p>
                     )}
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
+      </section>
 
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Manual Checks — please review your photo carefully
-          </p>
+      <section className="space-y-2">
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+          Manual Review
+        </p>
+        <div className="rounded-xl border divide-y overflow-hidden">
           {manualChecks.map((c) => (
-            <div key={c.label} className="rounded-lg border px-3 py-2 space-y-1">
+            <div key={c.label} className="px-3.5 py-2.5 space-y-1 bg-card">
               <div className="flex items-center gap-2 text-sm">
-                <Info className="w-4 h-4 text-warning flex-shrink-0" />
+                <Info className="w-4 h-4 text-muted-foreground/60 flex-shrink-0" />
                 <span className="flex-1">{c.label}</span>
-                <Badge variant="outline" className="ml-auto text-xs">Review</Badge>
+                <Badge variant="outline" className="text-[10px] px-1.5 text-muted-foreground">Review</Badge>
               </div>
               <p className="text-xs text-muted-foreground pl-6">{c.tip}</p>
             </div>
           ))}
         </div>
+      </section>
 
-        <div className="flex justify-center gap-3 flex-wrap">
-          <Button variant="outline" onClick={() => setCurrentStep(4)} className="gap-2">
-            <ArrowLeft className="w-4 h-4" /> Back to Enhancement
-          </Button>
-          <Button onClick={() => setCurrentStep(6)}>
-            Continue to Print Template →
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      <div className="flex flex-col sm:flex-row justify-center gap-2.5">
+        <Button variant="outline" onClick={() => setCurrentStep(4)} className="gap-2">
+          <ArrowLeft className="w-4 h-4" /> Back
+        </Button>
+        <Button onClick={() => setCurrentStep(6)} className="gap-1">
+          Continue <span className="hidden sm:inline">to Print</span> &rarr;
+        </Button>
+      </div>
+    </div>
   );
 }

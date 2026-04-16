@@ -8,60 +8,70 @@ import StepEnhance from "@/components/steps/StepEnhance";
 import StepCompliance from "@/components/steps/StepCompliance";
 import StepPrint from "@/components/steps/StepPrint";
 import { AnimatePresence, motion } from "framer-motion";
+import { Shield } from "lucide-react";
+
+const stepMap: Record<number, () => JSX.Element> = {
+  1: StepUpload,
+  2: StepBackgroundRemoval,
+  3: StepCrop,
+  4: StepEnhance,
+  5: StepCompliance,
+  6: StepPrint,
+};
 
 function AppContent() {
   const { currentStep } = usePhoto();
-
-  const stepComponents: Record<number, React.ReactNode> = {
-    1: <StepUpload />,
-    2: <StepBackgroundRemoval />,
-    3: <StepCrop />,
-    4: <StepEnhance />,
-    5: <StepCompliance />,
-    6: <StepPrint />,
-  };
+  const StepComponent = stepMap[currentStep];
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card sticky top-0 z-10">
-        <div className="container max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🇦🇺</span>
-            <h1 className="text-lg sm:text-xl font-bold text-foreground">
-              Aussie Passport Photo
-            </h1>
+    <div className="min-h-screen bg-background flex flex-col">
+      <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+              <span className="text-lg leading-none">🇦🇺</span>
+            </div>
+            <div>
+              <h1 className="text-base sm:text-lg font-bold text-foreground leading-tight tracking-tight">
+                Aussie Passport Photo
+              </h1>
+              <p className="text-[11px] text-muted-foreground leading-none hidden sm:block">
+                Free, private, browser-based
+              </p>
+            </div>
           </div>
           <StandardsSidebar />
         </div>
       </header>
 
-      {/* Step Progress */}
-      <div className="container max-w-4xl mx-auto px-4">
+      <div className="max-w-4xl mx-auto w-full px-4 sm:px-6">
         <StepProgress />
       </div>
 
-      {/* Step Content */}
-      <main className="container max-w-2xl mx-auto px-4 pb-12">
+      <main className="max-w-2xl mx-auto w-full px-4 sm:px-6 pb-16 flex-1">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentStep}
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
           >
-            {stepComponents[currentStep]}
+            <StepComponent />
           </motion.div>
         </AnimatePresence>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t bg-card py-4">
-        <div className="container max-w-4xl mx-auto px-4">
-          <p className="text-xs text-muted-foreground text-center">
-            🔒 Your photos are processed locally in your browser and are never stored on our servers.
-          </p>
+      <footer className="border-t bg-card/60 py-5">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Shield className="w-3.5 h-3.5 text-success flex-shrink-0" />
+            <span>Photos processed locally in your browser -- never uploaded to any server</span>
+          </div>
+          <span className="hidden sm:block text-muted-foreground/40">|</span>
+          <span className="text-xs text-muted-foreground/60">
+            Not affiliated with the Australian Government
+          </span>
         </div>
       </footer>
     </div>

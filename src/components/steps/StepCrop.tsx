@@ -2,9 +2,8 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import ReactCrop, { type Crop, centerCrop, makeAspectCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import { usePhoto } from "@/context/PhotoContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Crop as CropIcon, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 const TARGET_W = 827;
 const TARGET_H = 1063;
@@ -13,11 +12,8 @@ const ASPECT = 7 / 9;
 function HeadOverlay({ width, height }: { width: number; height: number }) {
   if (!width || !height) return null;
 
-  // Australian passport: face height 70–80% of photo height
-  // Eyes at ~31% from top of photo
-  // Head centred horizontally
   const faceHeightPct = 0.75;
-  const faceTopPct = 0.06;   // small gap at top for hair
+  const faceTopPct = 0.06;
   const faceBottomPct = faceTopPct + faceHeightPct;
 
   const faceTop = height * faceTopPct;
@@ -38,48 +34,43 @@ function HeadOverlay({ width, height }: { width: number; height: number }) {
       height={height}
       viewBox={`0 0 ${width} ${height}`}
     >
-      {/* Face oval guide */}
       <ellipse
         cx={faceCx}
         cy={faceCy}
         rx={faceW / 2}
         ry={faceH / 2}
         fill="none"
-        stroke="rgba(59,130,246,0.7)"
+        stroke="rgba(59,130,246,0.6)"
         strokeWidth="1.5"
         strokeDasharray="6,4"
       />
 
-      {/* Crown line */}
       <line x1={width * 0.25} y1={crownY} x2={width * 0.75} y2={crownY}
-        stroke="rgba(156,163,175,0.8)" strokeWidth="1" strokeDasharray="4,3" />
-      <text x={width * 0.76} y={crownY + 4} fontSize={Math.max(9, width * 0.03)} fill="rgba(156,163,175,0.9)">crown</text>
+        stroke="rgba(156,163,175,0.7)" strokeWidth="1" strokeDasharray="4,3" />
+      <text x={width * 0.76} y={crownY + 4} fontSize={Math.max(9, width * 0.03)} fill="rgba(156,163,175,0.8)">crown</text>
 
-      {/* Eye line */}
       <line x1={width * 0.15} y1={eyeY} x2={width * 0.85} y2={eyeY}
-        stroke="rgba(59,130,246,0.7)" strokeWidth="1" strokeDasharray="4,3" />
-      <text x={width * 0.86} y={eyeY + 4} fontSize={Math.max(9, width * 0.03)} fill="rgba(59,130,246,0.8)">eyes</text>
+        stroke="rgba(59,130,246,0.6)" strokeWidth="1" strokeDasharray="4,3" />
+      <text x={width * 0.86} y={eyeY + 4} fontSize={Math.max(9, width * 0.03)} fill="rgba(59,130,246,0.7)">eyes</text>
 
-      {/* Chin line */}
       <line x1={width * 0.25} y1={chinY} x2={width * 0.75} y2={chinY}
-        stroke="rgba(156,163,175,0.8)" strokeWidth="1" strokeDasharray="4,3" />
-      <text x={width * 0.76} y={chinY + 4} fontSize={Math.max(9, width * 0.03)} fill="rgba(156,163,175,0.9)">chin</text>
+        stroke="rgba(156,163,175,0.7)" strokeWidth="1" strokeDasharray="4,3" />
+      <text x={width * 0.76} y={chinY + 4} fontSize={Math.max(9, width * 0.03)} fill="rgba(156,163,175,0.8)">chin</text>
 
-      {/* Face height bracket on left */}
       <line x1={width * 0.08} y1={crownY} x2={width * 0.08} y2={chinY}
-        stroke="rgba(59,130,246,0.5)" strokeWidth="1" />
+        stroke="rgba(59,130,246,0.4)" strokeWidth="1" />
       <line x1={width * 0.06} y1={crownY} x2={width * 0.10} y2={crownY}
-        stroke="rgba(59,130,246,0.5)" strokeWidth="1" />
+        stroke="rgba(59,130,246,0.4)" strokeWidth="1" />
       <line x1={width * 0.06} y1={chinY} x2={width * 0.10} y2={chinY}
-        stroke="rgba(59,130,246,0.5)" strokeWidth="1" />
+        stroke="rgba(59,130,246,0.4)" strokeWidth="1" />
       <text
         x={width * 0.115}
         y={(crownY + chinY) / 2 + 4}
         fontSize={Math.max(8, width * 0.028)}
-        fill="rgba(59,130,246,0.8)"
+        fill="rgba(59,130,246,0.7)"
         transform={`rotate(-90, ${width * 0.115}, ${(crownY + chinY) / 2})`}
       >
-        70–80%
+        70-80%
       </text>
     </svg>
   );
@@ -104,7 +95,6 @@ export default function StepCrop() {
     setCompletedCrop(c);
   }, []);
 
-  // Track rendered image dimensions
   useEffect(() => {
     if (!imgRef.current) return;
     const obs = new ResizeObserver(() => {
@@ -119,7 +109,6 @@ export default function StepCrop() {
     return () => obs.disconnect();
   }, []);
 
-  // Compute the pixel rect of the active crop selection within the rendered image
   const cropRect = completedCrop && imgDims ? {
     left: (completedCrop.x / 100) * imgDims.width,
     top: (completedCrop.y / 100) * imgDims.height,
@@ -149,88 +138,88 @@ export default function StepCrop() {
 
   if (!bgRemovedImage) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center text-muted-foreground text-sm">
-          Complete background removal first.
-        </CardContent>
-      </Card>
+      <div className="rounded-xl border bg-card shadow-sm p-8 text-center text-muted-foreground text-sm">
+        Complete background removal first.
+      </div>
     );
   }
 
   return (
-    <Card className="border-primary/20">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <CropIcon className="w-5 h-5 text-primary" />
-          Crop & Resize
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
-          <p className="font-semibold text-foreground text-sm">Head Positioning Requirements</p>
-          <p>• Face height must be <strong>70–80%</strong> of the photo (crown to chin)</p>
-          <p>• Eyes roughly <strong>one-third from the top</strong> of the frame</p>
-          <p>• Head centred left-to-right with a small gap above the crown</p>
-          <p>• Full chin and top of head must be visible</p>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">Adjust the crop handles to frame the head correctly.</p>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1.5 text-xs h-7"
-            onClick={() => setShowOverlay((v) => !v)}
-          >
-            {showOverlay ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            {showOverlay ? "Hide guide" : "Show guide"}
-          </Button>
-        </div>
-
-        <div className="flex justify-center" ref={containerRef}>
-          <div className="relative inline-block">
-            <ReactCrop
-              crop={crop}
-              onChange={(_, pc) => setCrop(pc)}
-              onComplete={(_, pc) => setCompletedCrop(pc)}
-              aspect={ASPECT}
-              className="max-h-[420px]"
-            >
-              <img
-                ref={imgRef}
-                src={bgRemovedImage}
-                alt="Crop preview"
-                onLoad={onImageLoad}
-                className="max-h-[420px] block"
-              />
-            </ReactCrop>
-            {showOverlay && cropRect && (
-              <div
-                className="absolute pointer-events-none"
-                style={{
-                  left: cropRect.left,
-                  top: cropRect.top,
-                  width: cropRect.width,
-                  height: cropRect.height,
-                }}
-              >
-                <HeadOverlay width={cropRect.width} height={cropRect.height} />
-              </div>
-            )}
-          </div>
-        </div>
-
-        <p className="text-xs text-center text-muted-foreground">
-          Output: {TARGET_W} × {TARGET_H} px (35×45 mm at 600 DPI)
+    <div className="space-y-5">
+      <div className="text-center space-y-1">
+        <h2 className="text-lg font-bold text-foreground">Crop & Resize</h2>
+        <p className="text-xs text-muted-foreground">
+          Position the crop so the face fills 70-80% of the frame
         </p>
+      </div>
 
-        <div className="flex justify-center gap-3">
-          <Button variant="outline" onClick={() => setCurrentStep(2)} className="gap-2">
-            <ArrowLeft className="w-4 h-4" /> Back
-          </Button>
-          <Button onClick={applyCrop}>Apply Crop & Continue →</Button>
+      <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
+        <p className="font-medium text-sm text-foreground">Head Positioning</p>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+          <span>Face height: 70-80% of frame</span>
+          <span>Eyes: one-third from top</span>
+          <span>Head centred left-to-right</span>
+          <span>Full chin and crown visible</span>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      <div className="flex items-center justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 text-xs h-7"
+          onClick={() => setShowOverlay((v) => !v)}
+        >
+          {showOverlay ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          {showOverlay ? "Hide guide" : "Show guide"}
+        </Button>
+      </div>
+
+      <div className="flex justify-center" ref={containerRef}>
+        <div className="relative inline-block">
+          <ReactCrop
+            crop={crop}
+            onChange={(_, pc) => setCrop(pc)}
+            onComplete={(_, pc) => setCompletedCrop(pc)}
+            aspect={ASPECT}
+            className="max-h-[420px]"
+          >
+            <img
+              ref={imgRef}
+              src={bgRemovedImage}
+              alt="Crop preview"
+              onLoad={onImageLoad}
+              className="max-h-[420px] block"
+            />
+          </ReactCrop>
+          {showOverlay && cropRect && (
+            <div
+              className="absolute pointer-events-none"
+              style={{
+                left: cropRect.left,
+                top: cropRect.top,
+                width: cropRect.width,
+                height: cropRect.height,
+              }}
+            >
+              <HeadOverlay width={cropRect.width} height={cropRect.height} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <p className="text-[11px] text-center text-muted-foreground">
+        Output: {TARGET_W} x {TARGET_H} px (35x45 mm at 600 DPI)
+      </p>
+
+      <div className="flex flex-col sm:flex-row justify-center gap-2.5">
+        <Button variant="outline" onClick={() => setCurrentStep(2)} className="gap-2">
+          <ArrowLeft className="w-4 h-4" /> Back
+        </Button>
+        <Button onClick={applyCrop} className="gap-1">
+          Apply Crop & Continue &rarr;
+        </Button>
+      </div>
+    </div>
   );
 }

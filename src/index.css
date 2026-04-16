@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
 
 @layer base {
   :root {
@@ -15,7 +15,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 220 20% 10%;
 
-    --primary: 217 91% 50%;
+    --primary: 210 100% 45%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 220 14% 95%;
@@ -32,7 +32,7 @@
 
     --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --ring: 217 91% 50%;
+    --ring: 210 100% 45%;
 
     --radius: 0.625rem;
 
@@ -41,18 +41,18 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --step-active: 217 91% 50%;
+    --step-active: 210 100% 45%;
     --step-complete: 152 69% 40%;
     --step-pending: 220 13% 80%;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 220 20% 10%;
-    --sidebar-primary: 217 91% 50%;
+    --sidebar-primary: 210 100% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 220 14% 95%;
     --sidebar-accent-foreground: 220 20% 10%;
     --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217 91% 50%;
+    --sidebar-ring: 210 100% 45%;
   }
 }
 
@@ -67,33 +67,6 @@
   }
 }
 
-/* Before/After slider */
-.before-after-slider {
-  position: relative;
-  overflow: hidden;
-  cursor: ew-resize;
-  user-select: none;
-}
-
-.before-after-slider img {
-  display: block;
-  width: 100%;
-  height: auto;
-  pointer-events: none;
-}
-
-/* ReactCrop overrides */
 .ReactCrop {
   max-width: 100%;
-}
-
-/* Step transition */
-.step-enter {
-  opacity: 0;
-  transform: translateY(8px);
-}
-.step-enter-active {
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 300ms ease, transform 300ms ease;
 }

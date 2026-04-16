@@ -1,59 +1,72 @@
-import { Check } from "lucide-react";
+import { Check, Upload, Layers, Crop, Sun, ClipboardCheck, Printer } from "lucide-react";
 import { usePhoto } from "@/context/PhotoContext";
 
 const steps = [
-  "Upload",
-  "Background",
-  "Crop",
-  "Enhance",
-  "Compliance",
-  "Print",
+  { label: "Upload", icon: Upload },
+  { label: "Background", icon: Layers },
+  { label: "Crop", icon: Crop },
+  { label: "Enhance", icon: Sun },
+  { label: "Check", icon: ClipboardCheck },
+  { label: "Print", icon: Printer },
 ];
 
 export default function StepProgress() {
   const { currentStep } = usePhoto();
 
   return (
-    <div className="w-full py-4 px-2">
-      <div className="flex items-center justify-between max-w-2xl mx-auto">
-        {steps.map((label, i) => {
+    <nav className="w-full py-5 px-2" aria-label="Progress">
+      <ol className="flex items-center justify-between max-w-2xl mx-auto">
+        {steps.map((step, i) => {
           const stepNum = i + 1;
           const isComplete = currentStep > stepNum;
           const isActive = currentStep === stepNum;
+          const Icon = step.icon;
 
           return (
-            <div key={label} className="flex items-center flex-1 last:flex-none">
-              <div className="flex flex-col items-center gap-1.5">
+            <li key={step.label} className="flex items-center flex-1 last:flex-none">
+              <div className="flex flex-col items-center gap-1.5 relative">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors ${
-                    isComplete
-                      ? "bg-success text-success-foreground"
+                  className={`
+                    w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center
+                    text-sm font-semibold transition-all duration-300
+                    ${isComplete
+                      ? "bg-success text-success-foreground shadow-sm"
                       : isActive
-                      ? "bg-primary text-primary-foreground ring-2 ring-primary/30 ring-offset-2"
-                      : "bg-muted text-muted-foreground"
-                  }`}
+                        ? "bg-primary text-primary-foreground ring-[3px] ring-primary/20 shadow-md"
+                        : "bg-muted text-muted-foreground"
+                    }
+                  `}
                 >
-                  {isComplete ? <Check className="w-4 h-4" /> : stepNum}
+                  {isComplete ? <Check className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
                 </div>
                 <span
-                  className={`text-xs font-medium hidden sm:block ${
-                    isActive ? "text-primary" : isComplete ? "text-success" : "text-muted-foreground"
-                  }`}
+                  className={`
+                    text-[11px] font-medium hidden sm:block transition-colors duration-300
+                    ${isActive ? "text-primary" : isComplete ? "text-success" : "text-muted-foreground"}
+                  `}
                 >
-                  {label}
+                  {step.label}
                 </span>
+                {isActive && (
+                  <span className="sm:hidden text-[10px] font-semibold text-primary absolute -bottom-4 whitespace-nowrap">
+                    {step.label}
+                  </span>
+                )}
               </div>
               {i < steps.length - 1 && (
-                <div
-                  className={`flex-1 h-0.5 mx-2 rounded-full transition-colors ${
-                    isComplete ? "bg-success" : "bg-muted"
-                  }`}
-                />
+                <div className="flex-1 mx-1.5 sm:mx-2.5">
+                  <div
+                    className={`
+                      h-[2px] rounded-full transition-all duration-500
+                      ${isComplete ? "bg-success" : "bg-border"}
+                    `}
+                  />
+                </div>
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
-    </div>
+      </ol>
+    </nav>
   );
 }
